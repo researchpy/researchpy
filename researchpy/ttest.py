@@ -1,19 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sun Jul 22 13:18:39 2018
+Updated on December 23, 2018
 
-@author: CoreySSD
-
-TO DO:
-    - Check how it handles unequal sizes in report out (N and in calculation)
-    - Add paired-sample t-test ability
-    - Add exporting ability to csv
-    - Create documentation page for book
-    
-    
-    
-    
-    
+@author: Corey Bryant
+   
 """
 
 import pandas
@@ -21,7 +12,7 @@ import numpy
 import scipy.stats
 
 
-def ttest(group1, group2, equal_variances= True, paired= False, correction= None):
+def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances= True, paired= False, correction= None):
     
     # Joining groups for table and calculating group mean difference 
     groups = group1.append(group2, ignore_index= True)
@@ -176,8 +167,19 @@ def ttest(group1, group2, equal_variances= True, paired= False, correction= None
                                     '95% Conf.', 'Interval'])
     
     # Setting up the first column (Variable names)
-    table.iloc[0,0] = group1.name
-    table.iloc[1,0] = group2.name
+    if group1_name != None:
+        group1_name = group1_name
+    else:
+        group1_name = group1.name
+    
+    if group2_name != None:
+        group2_name = group2_name
+    else:
+        group2_name = group2.name
+    
+    table.iloc[0,0] = group1_name
+    table.iloc[1,0] = group2_name
+    
     if test == "Paired samples t-test":
         table.iloc[2,0] = 'diff'
     else:
@@ -239,10 +241,10 @@ def ttest(group1, group2, equal_variances= True, paired= False, correction= None
         table2 = pandas.DataFrame(numpy.zeros(shape= (6,2)), 
                          columns = ['Wilcoxon signed-rank test', 'results'])
         
-        table2.iloc[0,0] = f"Mean for {group1.name} = "
+        table2.iloc[0,0] = f"Mean for {group1_name} = "
         table2.iloc[0,1] = numpy.mean(group1)
         
-        table2.iloc[1,0] = f"Mean for {group2.name} = "
+        table2.iloc[1,0] = f"Mean for {group2_name} = "
         table2.iloc[1,1] = numpy.mean(group2)
         
         table2.iloc[2,0] = f"T value = "
@@ -265,7 +267,7 @@ def ttest(group1, group2, equal_variances= True, paired= False, correction= None
         
         table2.rename(columns= {'Test': f'{test}'}, inplace= True)
         
-        table2.iloc[0,0] = f"Difference ({group1.name} - {group2.name}) = "
+        table2.iloc[0,0] = f"Difference ({group1_name} - {group2_name}) = "
         table2.iloc[0,1] = round(groups_diff, 4)
         
         table2.iloc[1,0] = "Degrees of freedom = "
@@ -277,10 +279,10 @@ def ttest(group1, group2, equal_variances= True, paired= False, correction= None
         table2.iloc[3,0] = "Two side test p value = "
         table2.iloc[3,1] = round(p_val, 4)
         
-        table2.iloc[4,0] = f"Mean of {group1.name} > mean of {group2.name} p value = "
+        table2.iloc[4,0] = f"Mean of {group1_name} > mean of {group2_name} p value = "
         table2.iloc[4,1] = round(lt_p_val, 4)
         
-        table2.iloc[5,0] = f"Mean of {group1.name} < mean of {group2.name} p value = "
+        table2.iloc[5,0] = f"Mean of {group1_name} < mean of {group2_name} p value = "
         table2.iloc[5,1] = round(rt_p_val, 4)
         
         table2.iloc[6,0] = f"Cohen's d = "
