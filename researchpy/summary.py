@@ -146,7 +146,7 @@ def summary_cont(group1):
                                 inplace= True)
 
 
-    elif type(group1) == pandas.core.groupby.groupby.DataFrameGroupBy :
+    elif type(group1) == pandas.core.groupby.DataFrameGroupBy :
 
         l_ci = lambda x: numpy.mean(x) - (1.960 * (numpy.std(x)/numpy.sqrt(x.count() - 1)))
         l_ci.__name__ = "95% Conf."
