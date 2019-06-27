@@ -279,10 +279,10 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         table2.iloc[3,0] = "Two side test p value = "
         table2.iloc[3,1] = round(p_val, 4)
         
-        table2.iloc[4,0] = f"Mean of {group1_name} > mean of {group2_name} p value = "
+        table2.iloc[4,0] = f"Difference > 0 p value = "
         table2.iloc[4,1] = round(lt_p_val, 4)
-        
-        table2.iloc[5,0] = f"Mean of {group1_name} < mean of {group2_name} p value = "
+
+        table2.iloc[5,0] = f"Difference < 0 p value = "
         table2.iloc[5,1] = round(rt_p_val, 4)
         
         table2.iloc[6,0] = f"Cohen's d = "
