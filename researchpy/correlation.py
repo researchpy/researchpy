@@ -13,7 +13,7 @@ import itertools
 
 
 
-def corr_case(dataframe, method = None):
+def corr_case(dataframe, method = "pearson"):
     
     df = dataframe.dropna(how = 'any')._get_numeric_data()
     dfcols = pandas.DataFrame(columns= df.columns)
@@ -26,7 +26,7 @@ def corr_case(dataframe, method = None):
     
     
     # Setting test
-    if method == None:
+    if method in (None, "pearson"):
         test = scipy.stats.pearsonr
         test_name = "Pearson"
         
@@ -37,6 +37,9 @@ def corr_case(dataframe, method = None):
     elif method == "kendall":
         test = scipy. stats.kendalltau
         test_name = "Kendall's Tau-b"
+
+    else:
+        raise ValueError("Unknown method: " + method)
         
         
     # Rounding values for the r and p value dataframes 
@@ -63,7 +66,7 @@ def corr_case(dataframe, method = None):
 
 
 
-def corr_pair(dataframe, method= None):
+def corr_pair(dataframe, method= "pearson"):
     
     df = dataframe
     
@@ -74,7 +77,7 @@ def corr_pair(dataframe, method= None):
     
     
     # Setting test
-    if method == None:
+    if method in (None, "pearson"):
         test = scipy.stats.pearsonr
         test_name = "Pearson"
         
@@ -85,6 +88,9 @@ def corr_pair(dataframe, method= None):
     elif method == "kendall":
         test = scipy.stats.kendalltau
         test_name = "Kendall's Tau-b"
+
+    else:
+        raise ValueError("Unknown method: " + method)
     
     
     # Iterrating through the Pandas series and performing the correlation
