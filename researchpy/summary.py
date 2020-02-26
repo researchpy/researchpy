@@ -141,8 +141,8 @@ def summary_cont(group1):
         table = pandas.concat([cnt, mean, std, se, l_ci, u_ci],
                               axis= 'columns')
 
-        table.rename(columns = {'count': 'N', 'mean': 'Mean', 'std': 'SD', 
-                                'sem': 'SE', 0 : "95% Conf.", 1 : "Interval" }, 
+        table.rename(columns = {'count': 'N', 'mean': 'Mean', 'std': 'SD',
+                                'sem': 'SE', 0 : "95% Conf.", 1 : "Interval" },
                                 inplace= True)
 
 
@@ -156,8 +156,8 @@ def summary_cont(group1):
 
         table = group1.agg(['count', numpy.mean, numpy.std,
                             pandas.DataFrame.sem, l_ci, u_ci])
-    
-        table.rename(columns = {'count': 'N', 'mean': 'Mean', 'std': 'SD', 
+
+        table.rename(columns = {'count': 'N', 'mean': 'Mean', 'std': 'SD',
                                 'sem': 'SE'}, inplace= True)
 
 
@@ -253,3 +253,168 @@ def summary_cat(group1, ascending= False):
         print("This method can only be used with Pandas Series or DataFrames")
 
     return table
+
+
+
+def codebook(data):
+    """
+    This function returns descriptive information about the variables at hand.
+    Accepts Pandas Series or Pandas DataFrame objects.
+    """
+
+
+
+    if type(data) == pandas.core.series.Series:
+        """
+
+        How to provide summary information for Series objects
+
+        """
+
+
+
+        if "int" in str(data.dtype) or "float" in str(data.dtype):
+            print(f"Variable: {data.name}    Data Type: {data.dtype}", "\n")
+
+            print(f" Number of Obs.: {data.size} \n",
+                  f"Number of missing obs.: {data.size - data.count()} \n",
+                  f"Percent missing: {((data.size - data.count()) / data.size * 100).round(2)} \n",
+                  f"Number of unique values: {data.nunique()} \n")
+
+            print(f" Range: [{data.min()}, {data.max()}] \n",
+                  f"Mean: {round(data.mean(), 2)} \n",
+                  f"Standard Deviation: {round(data.std(), 2)} \n",
+                  f"Mode: {data.mode()[0]} \n",
+                  f"10th Percentile: {data.quantile(.10)} \n",
+                  f"25th Percentile: {data.quantile(.25)} \n",
+                  f"50th Percentile: {data.quantile(.50)} \n",
+                  f"75th Percentile: {data.quantile(.75)} \n",
+                  f"90th Percentile: {data.quantile(.90)} \n",)
+
+            print("\n" * 3)
+
+
+
+        elif "object" in str(data.dtype):
+            tab = dict(data.value_counts())
+            tab = dict(sorted(tab.items()))
+            tab = {"Values" : list(tab.keys()), "Frequency" : list(tab.values())}
+            tab = pandas.DataFrame(tab)
+
+
+            print(f"Variable: {data.name}    Data Type: {data.dtype}", "\n")
+
+            print(f" Number of Obs.: {data.size} \n",
+                  f"Number of missing obs.: {data.size - data.count()} \n",
+                  f"Percent missing: {((data.size - data.count()) / data.size * 100).round(2)} \n",
+                  f"Number of unique values: {data.nunique()} \n")
+
+            print(f" Data Values and Counts: \n \n",
+                  tab.to_string(index = False))
+
+            print("\n" * 3)
+
+
+
+        elif "datetime" in str(data.dtype):
+            print(f"Variable: {data.name}    Data Type: {data.dtype}", "\n")
+
+            print(f" Number of Obs.: {data.size} \n",
+                  f"Number of missing obs.: {data.size - data.count()} \n",
+                  f"Percent missing: {((data.size - data.count()) / data.size * 100).round(2)} \n",
+                  f"Number of unique values: {data.nunique()} \n")
+
+            print(f" Range: [{data.min()}, {data.max()}]")
+
+            print("\n" * 3)
+
+
+
+
+        else:
+            print(f"type(data) is not supported at this time.")
+
+            print("\n" * 3)
+
+
+
+
+
+    elif type(data) == pandas.core.frame.DataFrame:
+        """
+
+        How to provide summary information for DataFrame objects
+
+        """
+
+        for col in data.columns:
+
+            if "int" in str(data[col].dtype) or "float" in str(data[col].dtype):
+                print(f"Variable: {data[col].name}    Data Type: {data[col].dtype}", "\n")
+
+                print(f" Number of Obs.: {data[col].size} \n",
+                      f"Number of missing obs.: {data[col].size - data[col].count()} \n",
+                      f"Percent missing: {((data[col].size - data[col].count()) / data[col].size * 100).round(2)} \n",
+                      f"Number of unique values: {data[col].nunique()} \n")
+
+                print(f" Range: [{data[col].min()}, {data[col].max()}] \n",
+                      f"Mean: {round(data[col].mean(), 2)} \n",
+                      f"Standard Deviation: {round(data[col].std(), 2)} \n",
+                      f"Mode: {data[col].mode()[0]} \n",
+                      f"10th Percentile: {data[col].quantile(.10)} \n",
+                      f"25th Percentile: {data[col].quantile(.25)} \n",
+                      f"50th Percentile: {data[col].quantile(.50)} \n",
+                      f"75th Percentile: {data[col].quantile(.75)} \n",
+                      f"90th Percentile: {data[col].quantile(.90)} \n")
+
+                print("\n" * 3)
+
+
+
+            elif "object" in str(data[col].dtype):
+                tab = dict(data[col].value_counts())
+                tab = dict(sorted(tab.items()))
+                tab = {"Values" : list(tab.keys()), "Frequency" : list(tab.values())}
+                tab = pandas.DataFrame(tab)
+
+
+                print(f"Variable: {data[col].name}    Data Type: {data[col].dtype}", "\n")
+
+                print(f" Number of Obs.: {data[col].size} \n",
+                      f"Number of missing obs.: {data[col].size - data[col].count()} \n",
+                      f"Percent missing: {((data[col].size - data[col].count()) / data[col].size * 100).round(2)} \n",
+                      f"Number of unique values: {data[col].nunique()} \n")
+
+                print(f" Data Values and Counts: \n \n",
+                      tab.to_string(index = False))
+
+                print("\n" * 3)
+
+
+
+            elif "datetime" in str(data[col].dtype):
+                print(f"Variable: {data[col].name}    Data Type: {data[col].dtype}", "\n")
+
+                print(f" Number of Obs.: {data[col].size} \n",
+                      f"Number of missing obs.: {data[col].size - data[col].count()} \n",
+                      f"Percent missing: {((data[col].size - data[col].count()) / data[col].size * 100).round(2)} \n",
+                      f"Number of unique values: {data[col].nunique()} \n")
+
+                print(f" Range: [{data[col].min()}, {data[col].max()}]")
+
+                print("\n" * 3)
+
+
+
+
+            else:
+                print(f"{data.dtype} is not supported at this time.")
+
+                print("\n" * 3)
+
+
+
+
+
+    else:
+        print(f"Current data type, {type(data)}, is not supported. Currently, only Pandas Series and DataFrame are supported.")
