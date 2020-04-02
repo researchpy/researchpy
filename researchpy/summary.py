@@ -22,7 +22,7 @@ def summary_cont(group1):
         #### PUTTING THE INFORMATION INTO A DATAFRAME #####
         table = pandas.DataFrame(numpy.zeros(shape= (1,7)),
                          columns = ['Variable', 'N', 'Mean', 'SD', 'SE',
-                                    '95% Conf.', 'Interval'])
+                                    '95% CI inf', '95% CI sup'])
 
         # Setting up the first column (Variable names)
         table.iloc[0,0] = group1.name
@@ -49,7 +49,7 @@ def summary_cont(group1):
 
         table = pandas.DataFrame(numpy.zeros(shape= (1,7)),
                          columns = ['Variable', 'N', 'Mean', 'SD', 'SE',
-                                    '95% Conf.', 'Interval'])
+                                    '95% CI inf', '95% CI sup'])
        # table.drop(0, inplace= True)
 
         count = 0
@@ -62,7 +62,7 @@ def summary_cont(group1):
 
                 table = pandas.DataFrame(numpy.zeros(shape= (1,7)),
                          columns = ['Variable', 'N', 'Mean', 'SD', 'SE',
-                                    '95% Conf.', 'Interval'])
+                                    '95% CI inf', '95% CI sup'])
 
                 # Setting up the first column (Variable names)
                 table.iloc[0,0] = ix
@@ -88,7 +88,7 @@ def summary_cont(group1):
 
                 table_a = pandas.DataFrame(numpy.zeros(shape= (1,7)),
                          columns = ['Variable', 'N', 'Mean', 'SD', 'SE',
-                                    '95% Conf.', 'Interval'])
+                                    '95% CI inf', '95% CI sup'])
 
                 # Setting up the first column (Variable names)
                 table_a.iloc[0,0] = ix
@@ -142,17 +142,17 @@ def summary_cont(group1):
                               axis= 'columns')
 
         table.rename(columns = {'count': 'N', 'mean': 'Mean', 'std': 'SD',
-                                'sem': 'SE', 0 : "95% Conf.", 1 : "Interval" },
+                                'sem': 'SE', 0 : "95% CI inf", 1 : "95% CI sup" },
                                 inplace= True)
 
 
     elif type(group1) == pandas.core.groupby.DataFrameGroupBy :
 
         l_ci = lambda x: numpy.mean(x) - (1.960 * (numpy.std(x)/numpy.sqrt(x.count() - 1)))
-        l_ci.__name__ = "95% Conf."
+        l_ci.__name__ = "95% CI inf"
 
         u_ci = lambda x: numpy.mean(x) + (1.960 * (numpy.std(x)/numpy.sqrt(x.count() - 1)))
-        u_ci.__name__ = "Interval"
+        u_ci.__name__ = "95% CI sup"
 
         table = group1.agg(['count', numpy.mean, numpy.std,
                             pandas.DataFrame.sem, l_ci, u_ci])
