@@ -15,14 +15,18 @@ import numpy
 import scipy.stats
 
 ## summary_cont() provides descriptive statistics for continuous data
-def summary_cont(group1):
+def summary_cont(group1, conf = 0.95, decimals = 4):
+
+
+
+    conf_level = f"{round(conf * 100)}%"
 
     if type(group1) == pandas.core.series.Series:
 
         #### PUTTING THE INFORMATION INTO A DATAFRAME #####
         table = pandas.DataFrame(numpy.zeros(shape= (1,7)),
-                         columns = ['Variable', 'N', 'Mean', 'SD', 'SE',
-                                    '95% Conf.', 'Interval'])
+                         columns = ['Variable', 'N', 'Mean', 'SD', 'SE', f'{conf_level} Conf.', 'Interval'])
+
 
         # Setting up the first column (Variable names)
         table.iloc[0,0] = group1.name
@@ -40,17 +44,15 @@ def summary_cont(group1):
         table.iloc[0,4] = scipy.stats.sem(group1, nan_policy= 'omit')
 
         # Setting up the sixth and seventh column (95% CI)
-        table.iloc[0,5], table.iloc[0,6] = scipy.stats.t.interval(0.95,
+        table.iloc[0,5], table.iloc[0,6] = scipy.stats.t.interval(conf,
                                           group1.count() - 1,
-                                          loc= numpy.mean(group1),
-                                          scale= scipy.stats.sem(group1, nan_policy= 'omit'))
+                                          loc= numpy.mean(group1), scale= scipy.stats.sem(group1, nan_policy= 'omit'))
 
     elif type(group1) == pandas.core.frame.DataFrame:
 
         table = pandas.DataFrame(numpy.zeros(shape= (1,7)),
                          columns = ['Variable', 'N', 'Mean', 'SD', 'SE',
-                                    '95% Conf.', 'Interval'])
-       # table.drop(0, inplace= True)
+                                    f'{conf_level} Conf.', 'Interval'])
 
         count = 0
 
@@ -62,7 +64,7 @@ def summary_cont(group1):
 
                 table = pandas.DataFrame(numpy.zeros(shape= (1,7)),
                          columns = ['Variable', 'N', 'Mean', 'SD', 'SE',
-                                    '95% Conf.', 'Interval'])
+                                    f'{conf_level} Conf.', 'Interval'])
 
                 # Setting up the first column (Variable names)
                 table.iloc[0,0] = ix
@@ -80,7 +82,7 @@ def summary_cont(group1):
                 table.iloc[0,4] = scipy.stats.sem(df_col, nan_policy= 'omit')
 
                 # Setting up the sixth and seventh column (95% CI)
-                table.iloc[0,5], table.iloc[0,6] = scipy.stats.t.interval(0.95,
+                table.iloc[0,5], table.iloc[0,6] = scipy.stats.t.interval(conf,
                                           df_col.count() - 1,
                                           loc= numpy.mean(df_col),
                                           scale= scipy.stats.sem(df_col, nan_policy= 'omit'))
@@ -88,7 +90,7 @@ def summary_cont(group1):
 
                 table_a = pandas.DataFrame(numpy.zeros(shape= (1,7)),
                          columns = ['Variable', 'N', 'Mean', 'SD', 'SE',
-                                    '95% Conf.', 'Interval'])
+                                    f'{conf_level} Conf.', 'Interval'])
 
                 # Setting up the first column (Variable names)
                 table_a.iloc[0,0] = ix
@@ -106,7 +108,7 @@ def summary_cont(group1):
                 table_a.iloc[0,4] = scipy.stats.sem(df_col, nan_policy= 'omit')
 
                 # Setting up the sixth and seventh column (95% CI)
-                table_a.iloc[0,5], table_a.iloc[0,6] = scipy.stats.t.interval(0.95,
+                table_a.iloc[0,5], table_a.iloc[0,6] = scipy.stats.t.interval(conf,
                                           df_col.count() - 1,
                                           loc= numpy.mean(df_col),
                                           scale= scipy.stats.sem(df_col, nan_policy= 'omit'))
@@ -121,6 +123,7 @@ def summary_cont(group1):
 
 
     elif type(group1) == pandas.core.groupby.SeriesGroupBy:
+        ## Validated with R
 
         cnt = group1.count()
         cnt.rename("N", inplace= True)
@@ -129,36 +132,51 @@ def summary_cont(group1):
         std = group1.std(ddof= 1)
         std.rename("SD", inplace= True)
         se = group1.sem()
-        #se = group1.apply(lambda x: scipy.stats.sem(x, nan_policy= 'omit'))
-        #se = scipy.stats.sem(group1, nan_policy= 'omit')
         se.rename("SE", inplace= True)
 
         # 95% CI
-        l_ci = mean - (1.960 * (std/numpy.sqrt(cnt-1)))
-        u_ci = mean + (1.960 * (std/numpy.sqrt(cnt-1)))
+        l_ci, u_ci = scipy.stats.t.interval(conf,
+                                          cnt - 1,
+                                          loc= group1.mean(),
+                                          scale= group1.sem())
 
-
-        table = pandas.concat([cnt, mean, std, se, l_ci, u_ci],
+        table = pandas.concat([cnt, mean, std, se,
+                               pandas.Series(l_ci, index = cnt.index),
+                               pandas.Series(u_ci, index = cnt.index)],
                               axis= 'columns')
 
         table.rename(columns = {'count': 'N', 'mean': 'Mean', 'std': 'SD',
-                                'sem': 'SE', 0 : "95% Conf.", 1 : "Interval" },
+                                'sem': 'SE', 0 : f'{conf_level} Conf.', 1 : "Interval" },
                                 inplace= True)
 
 
     elif type(group1) == pandas.core.groupby.DataFrameGroupBy :
 
-        l_ci = lambda x: numpy.mean(x) - (1.960 * (numpy.std(x)/numpy.sqrt(x.count() - 1)))
-        l_ci.__name__ = "95% Conf."
+        # There has to be a better way to get the lower and upper CI limits
+        # in the groupby table. Until then, this works :/
+        def l_ci(x):
+            l_ci, _ = scipy.stats.t.interval(conf,
+                                                x.count() - 1,
+                                                loc= x.mean(),
+                                                scale= x.sem())
 
-        u_ci = lambda x: numpy.mean(x) + (1.960 * (numpy.std(x)/numpy.sqrt(x.count() - 1)))
-        u_ci.__name__ = "Interval"
+
+            return l_ci
+
+        def u_ci(x):
+            _, u_ci = scipy.stats.t.interval(conf,
+                                                x.count() - 1,
+                                                loc= x.mean(),
+                                                scale= x.sem())
+
+
+            return u_ci
 
         table = group1.agg(['count', numpy.mean, numpy.std,
                             pandas.DataFrame.sem, l_ci, u_ci])
 
         table.rename(columns = {'count': 'N', 'mean': 'Mean', 'std': 'SD',
-                                'sem': 'SE'}, inplace= True)
+                                'sem': 'SE', "l_ci" : f'{conf_level} Conf.', "u_ci" : "Interval"}, inplace= True)
 
 
     else:
@@ -166,7 +184,7 @@ def summary_cont(group1):
 
 
     print("\n")
-    return table
+    return table.round(decimals)
 
 
 
