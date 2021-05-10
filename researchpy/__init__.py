@@ -11,3 +11,4 @@ from .ttest import ttest
 from .summary import *
 from .correlation import *
 from .crosstab import *
+from .difference_test import *
