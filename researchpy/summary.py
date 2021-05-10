@@ -303,17 +303,17 @@ def codebook(data):
                   f"Mean: {round(data.mean(), 2)} \n",
                   f"Standard Deviation: {round(data.std(), 2)} \n",
                   f"Mode: {data.mode()[0]} \n",
-                  f"10th Percentile: {data.quantile(.10)} \n",
-                  f"25th Percentile: {data.quantile(.25)} \n",
-                  f"50th Percentile: {data.quantile(.50)} \n",
-                  f"75th Percentile: {data.quantile(.75)} \n",
-                  f"90th Percentile: {data.quantile(.90)} \n",)
+                  f"10th Percentile: {data.quantile(.10, interpolation= 'linear')} \n",
+                  f"25th Percentile: {data.quantile(.25, interpolation= 'linear')} \n",
+                  f"50th Percentile: {data.quantile(.50, interpolation= 'linear')} \n",
+                  f"75th Percentile: {data.quantile(.75, interpolation= 'linear')} \n",
+                  f"90th Percentile: {data.quantile(.90, interpolation= 'linear')} \n",)
 
             print("\n" * 3)
 
 
 
-        elif "object" in str(data.dtype):
+        elif "object" in str(data.dtype) or "category" == data.dtype:
             tab = dict(data.value_counts())
             tab = dict(sorted(tab.items()))
             tab = {"Values" : list(tab.keys()), "Frequency" : list(tab.values())}
@@ -379,17 +379,17 @@ def codebook(data):
                       f"Mean: {round(data[col].mean(), 2)} \n",
                       f"Standard Deviation: {round(data[col].std(), 2)} \n",
                       f"Mode: {data[col].mode()[0]} \n",
-                      f"10th Percentile: {data[col].quantile(.10)} \n",
-                      f"25th Percentile: {data[col].quantile(.25)} \n",
-                      f"50th Percentile: {data[col].quantile(.50)} \n",
-                      f"75th Percentile: {data[col].quantile(.75)} \n",
-                      f"90th Percentile: {data[col].quantile(.90)} \n")
+                      f"10th Percentile: {data[col].quantile(.10, interpolation= 'linear')} \n",
+                      f"25th Percentile: {data[col].quantile(.25, interpolation= 'linear')} \n",
+                      f"50th Percentile: {data[col].quantile(.50, interpolation= 'linear')} \n",
+                      f"75th Percentile: {data[col].quantile(.75, interpolation= 'linear')} \n",
+                      f"90th Percentile: {data[col].quantile(.90, interpolation= 'linear')} \n")
 
                 print("\n" * 3)
 
 
 
-            elif "object" in str(data[col].dtype):
+            elif "object" in str(data[col].dtype) or "category" == data[col].dtype:
                 tab = dict(data[col].value_counts())
                 tab = dict(sorted(tab.items()))
                 tab = {"Values" : list(tab.keys()), "Frequency" : list(tab.values())}
@@ -436,3 +436,92 @@ def codebook(data):
 
     else:
         print(f"Current data type, {type(data)}, is not supported. Currently, only Pandas Series and DataFrame are supported.")
+
+
+
+
+
+
+def summarize(data = {}, name = None, stats = [], ci_level = 0.95, return_type = "Dataframe"):
+
+    """
+
+    Available options are ["N", "Mean", "Median", "Variance", "SD", "SE", "CI",
+                           'Min', 'Max', 'Range', "Kurtosis", "Skew"].
+
+    The default returned is ["N", "Mean", "Median", "Variance", "SD", "SE", "CI"] at a 95% Conf. Interval.
+
+
+    """
+    # Parameter check
+    if return_type.upper() not in ["DATAFRAME", "DICTIONARY"]:
+        return print(" ",
+                     "Not a supported return type. Only 'Dataframe' and 'Dictionary' are supported at this time.",
+                     " ",
+                     sep = "\n"*2)
+
+
+
+    if len(stats) == 0:
+        stats = ["N", "Mean", "Median", "Variance", "SD", "SE", "CI"]
+
+    results = {}
+
+    if name != None:
+        results["Name"] = name
+
+    if name == None:
+        try:
+            results["Name"] = data.name
+        except:
+            ...
+
+    if "N" in stats:
+        results["N"] = float(numpy.count_nonzero(~numpy.isnan(data)))
+
+    if "Mean" in stats:
+        results["Mean"] = float(numpy.nanmean(data))
+
+    if "Median" in stats:
+        results["Median"] = float(numpy.nanmedian(data))
+
+    if "Variance" in stats:
+        results["Variance"] = float(numpy.nanvar(data, ddof = 1))
+
+    if "SD" in stats:
+        results["SD"] = float(numpy.nanstd(data, ddof = 1))
+
+    if "SE" in stats:
+        results["SE"] = float(scipy.stats.sem(data, nan_policy= 'omit'))
+
+    if "CI" in stats:
+        ci_lower, ci_upper = scipy.stats.t.interval(ci_level,
+                                                    int(numpy.isfinite(data).sum()) - 1,
+                                                    loc = numpy.nanmean(data),
+                                                    scale = scipy.stats.sem(data, nan_policy= 'omit'))
+
+        results[f"{int(ci_level * 100)}% Conf."] = float(ci_lower)
+        results["Interval"] = float(ci_upper)
+
+    if "Min" in stats:
+        results["Min"] = float(numpy.nanmin(data))
+
+    if "Max" in stats:
+        results["Max"] = float(numpy.nanmax(data))
+
+    if "Range" in stats:
+        results["Range"] = float(numpy.nanmax(data) - numpy.nanmin(data))
+
+    if "Kurtosis" in stats:
+        # This computes kurtosis using Pearson's definition
+        results["Kurtosis"] = float(scipy.stats.kurtosis(data, fisher = False, nan_policy = 'omit'))
+
+    if "Skew" in stats:
+        results["Skew"] = float(scipy.stats.skew(data, nan_policy = 'omit'))
+
+
+
+    if return_type == "Dataframe":
+        return pandas.DataFrame.from_dict(results, orient='index').T
+    elif return_type == "Dictionary":
+        return results
