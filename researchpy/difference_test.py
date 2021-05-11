@@ -10,6 +10,43 @@ from .summary import summarize
 
 class difference_test(object):
 
+    """
+
+    A method that conducts various difference tests and effect size measures which
+    will be returned as a Pandas DataFrame (default) or a Python dictionar object. Two
+    objects will be returned for all tests; first object is descriptive statistic
+    information, and the second object is the statistical testing information as
+    well as any effect sizes that were specified.
+
+    Available difference tests:
+
+        [] Independent sampes t-test;
+            > equal_variances = True, independent_samples = True
+        [] Paired samples t-test;
+            > equal_variances = True, independent_samples = False
+        [] Welch's t-test;
+            > equal_variances = False, independent_samples = True
+        [] Wilcoxon signed-rank test.
+            > equal_variances = False, independent_samples = False
+
+    Effect size measures are passed in the -conduct()- step; available effect
+    size options are: "Cohen's D", "Hedge's G", "Glass's delta1", "Glass's delta2",
+    "r", or "all".
+
+    Can be conducted in one step, or two steps:
+
+        One step
+        --------
+        difference_test(formula_like, data).conduct(return_type = "Dataframe", effect_size = None)
+
+        Two step
+        --------
+        model = difference_test(formula_like, data)
+        model.conduct(return_type = "Dataframe", effect_size = None)
+
+    """
+
+
 
 
     def __init__(self, formula_like, data = {}, conf_level = 0.95,
