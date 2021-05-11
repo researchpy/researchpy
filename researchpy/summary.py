@@ -303,11 +303,11 @@ def codebook(data):
                   f"Mean: {round(data.mean(), 2)} \n",
                   f"Standard Deviation: {round(data.std(), 2)} \n",
                   f"Mode: {data.mode()[0]} \n",
-                  f"10th Percentile: {data.quantile(.10, interpolation= 'linear')} \n",
-                  f"25th Percentile: {data.quantile(.25, interpolation= 'linear')} \n",
-                  f"50th Percentile: {data.quantile(.50, interpolation= 'linear')} \n",
-                  f"75th Percentile: {data.quantile(.75, interpolation= 'linear')} \n",
-                  f"90th Percentile: {data.quantile(.90, interpolation= 'linear')} \n",)
+                  f"10th Percentile: {data.quantile(.10, interpolation= 'lower')} \n",
+                  f"25th Percentile: {data.quantile(.25, interpolation= 'lower')} \n",
+                  f"50th Percentile: {data.quantile(.50, interpolation= 'lower')} \n",
+                  f"75th Percentile: {data.quantile(.75, interpolation= 'lower')} \n",
+                  f"90th Percentile: {data.quantile(.90, interpolation= 'lower')} \n",)
 
             print("\n" * 3)
 
@@ -379,11 +379,11 @@ def codebook(data):
                       f"Mean: {round(data[col].mean(), 2)} \n",
                       f"Standard Deviation: {round(data[col].std(), 2)} \n",
                       f"Mode: {data[col].mode()[0]} \n",
-                      f"10th Percentile: {data[col].quantile(.10, interpolation= 'linear')} \n",
-                      f"25th Percentile: {data[col].quantile(.25, interpolation= 'linear')} \n",
-                      f"50th Percentile: {data[col].quantile(.50, interpolation= 'linear')} \n",
-                      f"75th Percentile: {data[col].quantile(.75, interpolation= 'linear')} \n",
-                      f"90th Percentile: {data[col].quantile(.90, interpolation= 'linear')} \n")
+                      f"10th Percentile: {data[col].quantile(.10, interpolation= 'lower')} \n",
+                      f"25th Percentile: {data[col].quantile(.25, interpolation= 'lower')} \n",
+                      f"50th Percentile: {data[col].quantile(.50, interpolation= 'lower')} \n",
+                      f"75th Percentile: {data[col].quantile(.75, interpolation= 'lower')} \n",
+                      f"90th Percentile: {data[col].quantile(.90, interpolation= 'lower')} \n")
 
                 print("\n" * 3)
 
