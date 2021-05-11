@@ -3,8 +3,7 @@ import scipy.stats
 import patsy
 import re
 import pandas
-from .summary import *
-
+from .summary import summarize
 
 
 
