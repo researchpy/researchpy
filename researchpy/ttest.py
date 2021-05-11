@@ -300,7 +300,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         table2.iloc[8,0] = f"Glass's delta = "
         table2.iloc[8,1] = round(delta, 4)
 
-        table2.iloc[9,0] = f"Preasron's r = "
+        table2.iloc[9,0] = f"Pearson's r = "
         table2.iloc[9,1] = round(r, 4)
 
         return table, table2
