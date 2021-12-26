@@ -13,7 +13,7 @@ class difference_test(object):
     """
 
     A method that conducts various difference tests and effect size measures which
-    will be returned as a Pandas DataFrame (default) or a Python dictionar object. Two
+    will be returned as a Pandas DataFrame (default) or a Python dictionary object. Two
     objects will be returned for all tests; first object is descriptive statistic
     information, and the second object is the statistical testing information as
     well as any effect sizes that were specified.
@@ -51,7 +51,13 @@ class difference_test(object):
 
     def __init__(self, formula_like, data = {}, conf_level = 0.95,
                  equal_variances = True, independent_samples = True,
-                 wilcox_parameters = {"zero_method" : "wilcox", "correction" : False, "mode" : "auto"}, **keywords):
+                 wilcox_parameters = {"zero_method" : "pratt", "correction" : False, "mode" : "auto"}, **keywords):
+
+        if wilcox_parameters["zero_method"] not in ["pratt", "wilcox"]:
+            return print(" ",
+                         "Only 'pratt' and 'wilcox' methods are supported."
+                         " ",
+                         sep = "\n"*2)
 
 
 
@@ -64,7 +70,7 @@ class difference_test(object):
             name = "Welch's t-test"
         if equal_variances == False and independent_samples == False:
             name = "Wilcoxon signed-rank test"
-            parameters = {"zero_method" : "wilcox", "correction" : False, "mode" : "auto"}
+            parameters = {"zero_method" : "pratt", "correction" : False, "mode" : "auto"}
             parameters.update(wilcox_parameters)
 
 
@@ -106,7 +112,31 @@ class difference_test(object):
 
 
 
-    def conduct(self, return_type = "Dataframe", effect_size = None):
+    def conduct(self, return_type = "Dataframe", effect_size = None, decimals = 4):
+        """
+
+
+        Parameters
+        ----------
+        return_type : string, optional
+            What data structure to return, available options are "Dataframe" or "Dictionary". The default is "Dataframe".
+        effect_size : Boolean, optional
+            What effect size measures should be calculated and returned apart of the results table; the default is None.
+
+            Options are: "Cohen's D", "Hedge's G", "Glass's delta1", "Glass's delta2", "r", or "all" - "all" will calculated all the effect sizes.
+            Note that only Rank-Biserial r will be calculated for the Wilcoxon signed-rank test.
+
+        decimals : Integer, optional
+            How many decimal places should the returned data be rounded to; the default is 4.
+
+        Returns
+        -------
+        Summary table : Pandas Dataframe or Dictionary
+            Contains the summary statistic information for the test.
+        Testing results table : Pandas Dataframe or Dictionary
+            Containts the statistical testing information as well as any effect size measures.
+
+        """
 
         # Parameter check
         if return_type.upper() not in ["DATAFRAME", "DICTIONARY"]:
@@ -116,7 +146,7 @@ class difference_test(object):
                          sep = "\n"*2)
 
 
-        if effect_size != None:
+        if effect_size is not None:
             if type(effect_size) == str and effect_size != "all":
                 effect_size = list(effect_size)
             elif type(effect_size) == str and effect_size == "all":
@@ -142,12 +172,12 @@ class difference_test(object):
 
 
         # Getting the summary table ready - part 1
-        group1_info = summarize(group1, stats = ["N", "Mean", "SD", "SE", "Variance", "CI"], name = self.parameters["Categories"][0], ci_level = self.parameters["Conf. Level"], return_type = "Dictionary")
-        group2_info = summarize(group2, stats = ["N", "Mean", "SD", "SE", "Variance", "CI"], name = self.parameters["Categories"][1], ci_level = self.parameters["Conf. Level"], return_type = "Dictionary")
+        group1_info = summarize(group1, stats = ["N", "Mean", "SD", "SE", "Variance", "CI"], name = self.parameters["Categories"][0], ci_level = self.parameters["Conf. Level"], decimals = 64, return_type = "Dictionary")
+        group2_info = summarize(group2, stats = ["N", "Mean", "SD", "SE", "Variance", "CI"], name = self.parameters["Categories"][1], ci_level = self.parameters["Conf. Level"], decimals = 64, return_type = "Dictionary")
 
 
         combined = summarize(numpy.vstack((group1, group2)),
-                             stats = ["N", "Mean", "SD", "SE", "Variance", "CI"], name = "combined", ci_level = self.parameters["Conf. Level"], return_type = "Dictionary")
+                             stats = ["N", "Mean", "SD", "SE", "Variance", "CI"], name = "combined", ci_level = self.parameters["Conf. Level"], decimals = 64, return_type = "Dictionary")
 
 
         diff = {}
@@ -185,6 +215,14 @@ class difference_test(object):
 
             stat, pval = scipy.stats.wilcoxon(d, zero_method = self.parameters["Wilcox parameters"]['zero_method'], correction = self.parameters["Wilcox parameters"]['correction'], mode = self.parameters["Wilcox parameters"]['mode'])
             stat_name = "W"
+
+            if self.parameters["Wilcox parameters"]['zero_method'] == "pratt":
+                d_abs = scipy.stats.rankdata(d)
+
+            else:
+                d = d[d != 0]
+                d_abs = scipy.stats.rankdata(d)
+
 
             dof = group1_info["N"] - 1
 
@@ -227,19 +265,19 @@ class difference_test(object):
 
 
         # Creating effect size table
-        if effect_size != None:
+        if effect_size is not None:
 
             if self.parameters["Test name"] == "Wilcoxon signed-rank test":
 
                 if effect_size != "r":
                     print(" ",
-                          f"Only Point-Biserial r will be calulcated for the {self.parameters['Test name']}.",
+                          f"Only Rank-Biserial r will be calulcated for the {self.parameters['Test name']}.",
                           " ",
                           sep = "\n"*2)
 
-                r = stat / scipy.stats.rankdata(d).sum()
+                r = stat / scipy.stats.rankdata(d_abs).sum()
 
-                result_table[self.parameters["Test name"]].append("Point-Biserial r")
+                result_table[self.parameters["Test name"]].append("Rank-Biserial r")
                 result_table["Results"].append(float(r))
 
 
@@ -309,7 +347,7 @@ class difference_test(object):
                     if es == "r":
                         r = stat / numpy.sqrt(stat**2 + dof)
 
-                        result_table[self.parameters["Test name"]].append("Point-Biserial r")
+                        result_table[self.parameters["Test name"]].append("Rank-Biserial r")
                         result_table["Results"].append(float(r))
 
 
@@ -356,8 +394,9 @@ class difference_test(object):
             diff["SE"] = float(se_pooled)
 
 
-        diff[f"{int(self.parameters['Conf. Level'] * 100)}% Conf."] = float(ci_lower_diff)
-        diff["Interval"] = float(ci_upper_diff)
+        #diff[f"{int(self.parameters['Conf. Level'] * 100)}% Conf."] = float(ci_lower_diff)
+        #diff["Interval"] = float(ci_upper_diff)
+        diff[f"{int(self.parameters['Conf. Level'] * 100)}% Conf. Interval"] = [ci_lower_diff, ci_upper_diff]
 
 
 
@@ -369,6 +408,18 @@ class difference_test(object):
         summary_table = pandas.concat([group1_table, group2_table, combined_table, diff_table], ignore_index = True)
         summary_table.replace(numpy.nan, ' ', inplace = True)
 
+        # Rounding the summary table
+        summary_table = summary_table.round(decimals)
+
+        result_table = pandas.DataFrame(result_table)
+        result_table = result_table.round(decimals)
+
+        # Rounding the confidence interval values
+        for row in summary_table[f"{int(self.parameters['Conf. Level'] * 100)}% Conf. Interval"]:
+            idx = 0
+            for value in row:
+                row[idx] = round(value, 4)
+                idx +=1
 
 
 
@@ -376,16 +427,16 @@ class difference_test(object):
         # Returning the information
         if return_type == "Dataframe":
             if self.parameters["Test name"] == "Wilcoxon signed-rank test":
-                return summary_table.iloc[:-2, :], pandas.DataFrame(result_table)
+                return summary_table.iloc[:-2, :], result_table
             elif self.parameters["Test name"] == "Paired samples t-test":
-                return summary_table.drop(2), pandas.DataFrame(result_table)
+                return summary_table.drop(2), result_table
             else:
-                return summary_table, pandas.DataFrame(result_table)
+                return summary_table, result_table
 
         if return_type == "Dictionary":
             if self.parameters["Test name"] == "Wilcoxon signed-rank test":
-                return summary_table.iloc[:-2, :].to_dict(), result_table
+                return summary_table.iloc[:-2, :].to_dict(), result_table.to_dict()
             elif self.parameters["Test name"] == "Paired samples t-test":
-                return summary_table.drop(2).to_dict(), result_table
+                return summary_table.drop(2).to_dict(), result_table.to_dict()
             else:
-                return summary_table.to_dict(), result_table
+                return summary_table.to_dict(), result_table.to_dict()

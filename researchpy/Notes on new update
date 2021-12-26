@@ -1,0 +1,24 @@
+
+(1) Added support to summarize for Pandas Groupby objects
+
+(2) Updated difference_test to work with the changes made to summarize
+
+(3) Added -model- which will be the bases on the multivariable analysis
+
+(4) Added -anova- which will conduct an anova and produce 1, 2, or 3 sum of squares
+
+
+
+TO DO
+=====
+[] Re-validate:
+  <> -summarize-
+  <> -difference_test-
+  <> -anova-
+
+[DONE] Add the new helper functions to Researchpy
+
+[] Add documentation about:
+  <> basic_stats
+  <DONE> anova
+  <> model

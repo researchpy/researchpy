@@ -3,7 +3,7 @@
 
 @author: Corey Bryant
 
-Last udpated: 05/1/2021
+Last udpated: 07/14/2021
 
 """
 
@@ -12,3 +12,4 @@ from .summary import *
 from .correlation import *
 from .crosstab import *
 from .difference_test import *
+from .basic_stats import *
