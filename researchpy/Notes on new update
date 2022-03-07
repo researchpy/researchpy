@@ -7,18 +7,37 @@
 
 (4) Added -anova- which will conduct an anova and produce 1, 2, or 3 sum of squares
 
+(5) Added signrank test
 
 
 TO DO
 =====
-[] Re-validate:
-  <> -summarize-
-  <> -difference_test-
+[] Validate:
+  <DONE> -summarize-
+  <DONE> -difference_test-
+  <DONE> -ttest-
+  <DONE> -signrank-
   <> -anova-
+      <DONE> Validated outcome model with different sum of squares & model effect size.
+      <DONE> Want to add variable effect sizes where "r squared" and "r squared adj." currently are
+              > Added the calculations to the documentation
 
 [DONE] Add the new helper functions to Researchpy
 
+[DONE] Add ability to specifiy if one wants to use Welch or Welch-Satterthwaite Degrees of Freedom in
+    difference_test and ttest.
+
+[DONE] Add mention to Chatel B (have email) about helping with Welch's
+
+[DONE] Ensure name_cleaner works for formulas using "C(disease, Treatment(value))" where
+      disease is the variable name and value is the category which is desired to be the reference
+
+
+[] Validate Effect Size Measures
+    () All checked out except for ranksign
+
 [] Add documentation about:
   <> basic_stats
-  <DONE> anova
+  <In progress> anova
   <> model
+  <> signrank test

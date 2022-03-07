@@ -13,6 +13,7 @@ To do:
 import pandas
 import numpy
 import scipy.stats
+from .basic_stats import *
 
 ## summary_cont() provides descriptive statistics for continuous data
 def summary_cont(group1, conf = 0.95, decimals = 4):
@@ -441,7 +442,6 @@ def codebook(data):
 
 
 
-
 def summarize(data = {}, name = None, stats = [], ci_level = 0.95, decimals = 4, return_type = "Dataframe"):
     """
 
@@ -490,22 +490,21 @@ def summarize(data = {}, name = None, stats = [], ci_level = 0.95, decimals = 4,
 
     results = {}
 
-    if name != None:
+    if name is not None:
         results["Name"] = name
 
-    if name == None:
+    if name is None:
         try:
             results["Name"] = data.name
         except:
             ...
 
-
-
-
+    flag = "nongroupby"
 
     # Calculating the requested information #
     if type(data) == pandas.core.groupby.generic.DataFrameGroupBy or type(data) == pandas.core.groupby.generic.SeriesGroupBy:
 
+        flag = "groupby"
         stats_to_conduct = []
 
         idx = -1
@@ -519,15 +518,76 @@ def summarize(data = {}, name = None, stats = [], ci_level = 0.95, decimals = 4,
             if "SD" == test: stats_to_conduct.append(nanstd)
             if "SE" == test: stats_to_conduct.append(nansem)
             if "CI" == test:
+                #stats_to_conduct.append(lambda x: [l_ci(x, alpha = ci_level, decimals = decimals), u_ci(x, alpha = ci_level, decimals = decimals)])
                 stats_to_conduct.append(confidence_interval)
                 stats[idx] = f"{int(ci_level * 100)}% Conf. Interval"
             if "Min" == test: stats_to_conduct.append(numpy.nanmin)
             if "Max" == test: stats_to_conduct.append(numpy.nanmax)
-            if "Range" == test: stats_to_conduct.append(numpy.nanmax - numpy.nanmin)
+            if "Range" == test: stats_to_conduct.append(value_range)
             if "Kurtosis" == test: stats_to_conduct.append(kurtosis)
             if "Skew" == test: stats_to_conduct.append(skew)
 
+
         results = round(data.agg(stats_to_conduct), decimals)
+
+        if type(data) == pandas.core.groupby.generic.DataFrameGroupBy:
+            ## Need to clean up the lmbda_0 name
+            col = [(x[0], f"{int(ci_level * 100)}% Conf. Interval") if x[1] == '<lambda_0>' else x for x in results.columns.tolist()]
+            results.columns = pandas.MultiIndex.from_tuples(col)
+
+            if return_type == "Dictionary":
+                results = results.to_dict()
+        else:
+            col = [f"{int(ci_level * 100)}% Conf. Interval" if x == '<lambda_0>' else x for x in results.columns.tolist()]
+            results.columns = col
+
+
+
+
+    elif type(data) == pandas.core.frame.DataFrame:
+
+        results["Name"] = data.columns.tolist()
+
+        idx = -1
+        for test in stats:
+            idx += 1
+
+            if "N" == test:
+                results[test] = round(data.apply(count), decimals)
+
+            if "Mean" == test:
+                results[test] = round(data.apply(numpy.nanmean), decimals)
+
+            if "Median" == test:
+                results[test] = round(data.apply(numpy.nanmedian), decimals)
+
+            if "Variance" == test:
+                results[test] = round(data.apply(nanvar), decimals)
+
+            if "SD" == test:
+                results[test] = round(data.apply(nanstd), decimals)
+
+            if "SE" == test:
+                results[test] = round(data.apply(nansem), decimals)
+
+            if "CI" == test:
+                results[f"{int(ci_level * 100)}% Conf. Interval"] = data.apply(lambda x: confidence_interval(x, alpha = ci_level, decimals = decimals))
+                stats[idx] = f"{int(ci_level * 100)}% Conf. Interval"
+
+            if "Min" == test:
+                results[test] = round(data.apply(numpy.nanmin), decimals)
+
+            if "Max" == test:
+                results[test] = round(data.apply(numpy.nanmax), decimals)
+
+            if "Range" == test:
+                results[test] = round(data.apply(value_range), decimals)
+
+            if "Kurtosis" == test:
+                results[test] = round(data.apply(kurtosis), decimals)
+
+            if "Skew" == test:
+                results[test] = round(data.apply(skew), decimals)
 
 
 
@@ -664,6 +724,7 @@ def summarize(data = {}, name = None, stats = [], ci_level = 0.95, decimals = 4,
             except:
                 try:
                     results["Kurtosis"] = round(data.apply(lambda x: kurtosis(x)), decimals)
+
                 except:
                     # Used on patsy.design_info.DesignMatrix objects
                     results["Kurtosis"] = float(kurtosis(data))
@@ -677,6 +738,8 @@ def summarize(data = {}, name = None, stats = [], ci_level = 0.95, decimals = 4,
                 except:
                     # Used on patsy.design_info.DesignMatrix objects
                     results["Skew"] = float(skew(data))
+
+
 
 
 
@@ -696,6 +759,7 @@ def summarize(data = {}, name = None, stats = [], ci_level = 0.95, decimals = 4,
                                       "confidence_interval" : f"{int(ci_level * 100)}% Conf. Interval",
                                       "nanmin" : "Min",
                                       "nanmax" : "Max",
+                                      "ptp" : "Range",
                                       "kurtosis" : "Kurtosis",
                                       "skew" : "Skew"}, inplace = True)
             except:
@@ -706,4 +770,24 @@ def summarize(data = {}, name = None, stats = [], ci_level = 0.95, decimals = 4,
             return results
 
     elif return_type == "Dictionary":
-        return results
+
+        if flag == "groupby":
+
+            results.rename(columns = {"count" : "N",
+                                      "nanmean" : "Mean",
+                                      "nanmedian" : "Median",
+                                      "nanvar" : "Variance",
+                                      "nanstd" : "SD",
+                                      "nansem" : "SE",
+                                      "confidence_interval" : f"{int(ci_level * 100)}% Conf. Interval",
+                                      "nanmin" : "Min",
+                                      "nanmax" : "Max",
+                                      "ptp" : "Range",
+                                      "kurtosis" : "Kurtosis",
+                                      "skew" : "Skew"}, inplace = True)
+
+
+            return dict(results)
+
+        else:
+            return results

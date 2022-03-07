@@ -8,6 +8,9 @@ from .summary import summarize
 
 
 
+
+
+
 class difference_test(object):
 
     """
@@ -51,7 +54,8 @@ class difference_test(object):
 
     def __init__(self, formula_like, data = {}, conf_level = 0.95,
                  equal_variances = True, independent_samples = True,
-                 wilcox_parameters = {"zero_method" : "pratt", "correction" : False, "mode" : "auto"}, **keywords):
+                 wilcox_parameters = {"zero_method" : "pratt", "correction" : False, "mode" : "auto"},
+                 welch_dof = "satterthwaite", **keywords):
 
         if wilcox_parameters["zero_method"] not in ["pratt", "wilcox"]:
             return print(" ",
@@ -107,7 +111,8 @@ class difference_test(object):
                                "Conf. Level": conf_level,
                                "Categories" : categories,
                                "Equal variances" : equal_variances,
-                               "Independent samples" : independent_samples}
+                               "Independent samples" : independent_samples,
+                               "Welch DoF" : welch_dof}
 
 
 
@@ -195,52 +200,203 @@ class difference_test(object):
 
             dof = group1_info["N"] + group2_info["N"] - 2
 
+
+            var_pooled = ( (group1_info["N"] - 1)*group1_info["Variance"] + (group2_info["N"] - 1)*group2_info["Variance"] ) / (group1_info["N"] + group2_info["N"] - 2)
+
+            se_pooled = numpy.sqrt( (var_pooled / group1_info["N"])  +  (var_pooled / group2_info["N"])    )
+
+            ci_lower_diff, ci_upper_diff = scipy.stats.t.interval(self.parameters["Conf. Level"],
+                                                                  dof,
+                                                                  loc = diff["Mean"],
+                                                                  scale = se_pooled)
+            diff["SE"] = float(se_pooled)
+
+
+
+
         if self.parameters["Test name"] == "Paired samples t-test":
             stat, pval = scipy.stats.ttest_rel(group1, group2, nan_policy = 'omit')
             stat_name = "t"
 
             dof = group1_info["N"] - 1
 
+
+
+            difference = group1 - group2
+
+            se = float(scipy.stats.sem(difference, nan_policy= 'omit'))
+
+            ci_lower_diff, ci_upper_diff = scipy.stats.t.interval(self.parameters["Conf. Level"],
+                                                                  dof,
+                                                                  loc = diff["Mean"],
+                                                                  scale = se)
+
+            diff["SE"] = se
+            diff["SD"] = float(difference.std(ddof = 1))
+
+
+
+
         if self.parameters["Test name"] == "Welch's t-test":
+
             stat, pval = scipy.stats.ttest_ind(group1, group2, equal_var = False, nan_policy = 'omit')
             stat_name = "t"
 
-            ## Welch-Satterthwaite Degrees of Freedom ##
-            dof = -2 + (((group1_info["Variance"]/group1_info["N"]) + (group2_info["Variance"]/group2_info["N"]))**2 / ((group1_info["Variance"]/group1_info["N"])**2 / (group1_info["N"]+1) + (group2_info["Variance"]/group2_info["N"])**2 / (group2_info["N"]+1)))
+            se_unpooled = numpy.sqrt( group1_info["Variance"] / group1_info["N"] +  group2_info["Variance"] / group2_info["N"]  )
+
+
+
+            if self.parameters["Welch DoF"] == "satterthwaite":
+
+                ## Satterthwaite (1946) Degrees of Freedom ##
+                dof = ((group1_info["Variance"]/group1_info["N"]) + (group2_info["Variance"]/group2_info["N"]))**2 / ((group1_info["Variance"]/group1_info["N"])**2 / (group1_info["N"]-1) + (group2_info["Variance"]/group2_info["N"])**2 / (group2_info["N"]-1))
+
+
+            elif self.parameters["Welch DoF"] == "welch":
+
+                ## Welch (1947) Degrees of Freedom ##
+                dof = -2 + (((group1_info["Variance"]/group1_info["N"]) + (group2_info["Variance"]/group2_info["N"]))**2 / ((group1_info["Variance"]/group1_info["N"])**2 / (group1_info["N"]+1) + (group2_info["Variance"]/group2_info["N"])**2 / (group2_info["N"]+1)))
+
+                pval = 2 * min((1 - scipy.stats.t.cdf(stat, dof)), scipy.stats.t.cdf(stat, dof))
+
+
+
+            ci_lower_diff, ci_upper_diff = scipy.stats.t.interval(self.parameters["Conf. Level"],
+                                                                  dof,
+                                                                  loc = diff["Mean"],
+                                                                  scale = se_unpooled)
+            diff["SE"] = float(se_unpooled)
 
 
         if self.parameters["Test name"] == "Wilcoxon signed-rank test":
-            d = group1 - group2
-            d = numpy.reshape(d, (d.shape[0], ))
 
-            stat, pval = scipy.stats.wilcoxon(d, zero_method = self.parameters["Wilcox parameters"]['zero_method'], correction = self.parameters["Wilcox parameters"]['correction'], mode = self.parameters["Wilcox parameters"]['mode'])
-            stat_name = "W"
+            difference = group1 - group2
+            difference = numpy.reshape(difference, (difference.shape[0], ))
 
-            if self.parameters["Wilcox parameters"]['zero_method'] == "pratt":
-                d_abs = scipy.stats.rankdata(d)
+            if self.parameters["Wilcox parameters"]['zero_method'] == 'pratt':
 
-            else:
-                d = d[d != 0]
-                d_abs = scipy.stats.rankdata(d)
+                difference_abs = numpy.abs(difference)
+
+                total_n = difference.shape[0]
+                positive_n = difference[difference > 0].shape[0]
+                negative_n = difference[difference < 0].shape[0]
+                zero_n = difference[difference == 0].shape[0]
+
+            elif self.parameters["Wilcox parameters"]['zero_method'] == 'wilcox':
+
+                difference = difference[difference != 0]
+                difference_abs = numpy.abs(difference)
+
+                # Calculating Signed Information
+                total_n = difference.shape[0]
+                positive_n = difference[difference > 0].shape[0]
+                negative_n = difference[difference < 0].shape[0]
+                zero_n = difference[difference == 0].shape[0]
+
+            elif self.parameters["Wilcox parameters"]['zero_method'] == 'zsplit':
+                # Includes zero-differences in the ranking process and split the zero tank between positive and negative ones
+
+                print("This method is not currently supported, please enter either 'wilcox' or 'pratt'.")
 
 
-            dof = group1_info["N"] - 1
+
+            # Ranking the absolute difference |d|
+            ranked = scipy.stats.rankdata(difference_abs)
+
+            sign = numpy.where(difference < 0, -1, 1)
+
+            ranked_sign = (sign * ranked)
 
 
-        # P value tails
-        pval_lt = scipy.stats.t.cdf(stat, dof)
-        pval_rt = 1 - scipy.stats.t.cdf(stat, dof)
+
+            # Descriptive Information #
+            total_sum_ranks = ranked.sum()
+            positive_sum_ranks = ranked[difference > 0].sum()
+            negative_sum_ranks = ranked[difference < 0].sum()
+            zero_sum_ranks = ranked[difference == 0].sum()
+
+
+            ## Dropping the Rank of the Zeros
+            sign2 = numpy.where(difference == 0, 0, sign)
+            ranked2 = sign2 * ranked
+            ranked2 = numpy.where(difference == 0, 0, ranked2)
+
+
+            # Expected T
+            T = (sign * ranked_sign).sum()
+
+            # Observered T
+            T_obs = (sign2 * ranked2).sum()
+
+
+            # Expected T+ and T-
+            exp_positive = T_obs / 2
+            exp_negative = T_obs / 2
+            exp_zero = T - T_obs
+
+            var_adj_T = (ranked2 * ranked2).sum()
+
+
+            e_T_pos = total_n  * (total_n  + 1) / 4
+            var_adj_T_pos = (1/4) * var_adj_T
+
+            var_unadj_T_pos = ((total_n * (total_n + 1)) * (2 * total_n + 1)) /24
+            var_zero_adj_T_pos = -1 * ((zero_n * (zero_n + 1)) * (2 * zero_n + 1)) /24
+
+            var_ties_adj = var_adj_T_pos - var_unadj_T_pos - var_zero_adj_T_pos
+
+
+            z = (positive_sum_ranks - exp_positive) / numpy.sqrt(var_adj_T_pos)
+
+
+
+            t_val, p_val = scipy.stats.wilcoxon(difference,
+                                                zero_method = self.parameters["Wilcox parameters"]['zero_method'],
+                                                correction = self.parameters["Wilcox parameters"]["correction"],
+                                                mode = self.parameters["Wilcox parameters"]["mode"])
+
+
+            ## Effect size
+            ##  Pearson r = z / square_root(N)
+            pr = z / numpy.sqrt(total_n)
+
+            pbr = t_val / total_sum_ranks
+
+
+            ### Descriptive table
+            descriptives = {"sign" : ["positive", "negative", "zero", "all"],
+                            "obs" : [positive_n, negative_n, zero_n, total_n],
+                            "sum ranks" : [positive_sum_ranks, negative_sum_ranks, zero_sum_ranks, total_sum_ranks],
+                            "expected" : [exp_positive, exp_negative, exp_zero, T]}
+
+            ##### Variance table
+            variance = {"unadjusted variance" : var_unadj_T_pos,
+                        "adjustment for ties" : var_ties_adj,
+                        "adjustment for zeros" : var_zero_adj_T_pos,
+                        "adjusted variance" : var_adj_T_pos}
+
+            ##### Results table
+            results = {"z" : z,
+                       "w" : t_val,
+                       "pval" : p_val}
+
+
+
+
+
+        if self.parameters["Test name"] != "Wilcoxon signed-rank test":
+
+            # P value tails
+            pval_lt = scipy.stats.t.cdf(stat, dof)
+            pval_rt = 1 - scipy.stats.t.cdf(stat, dof)
+
+
 
 
 
         # Creating testing information table
         if self.parameters["Test name"] == "Wilcoxon signed-rank test":
-            result_table = {self.parameters["Test name"] : [f"({self.parameters['Categories'][0]} = {self.parameters['Categories'][1]})",
-                                                            f"{stat_name} =",
-                                                            "Two sided p-value ="],
-                            "Results" : ['',
-                                         float(stat),
-                                         float(pval)]}
+            ...
 
 
         else:
@@ -271,14 +427,12 @@ class difference_test(object):
 
                 if effect_size != "r":
                     print(" ",
-                          f"Only Rank-Biserial r will be calulcated for the {self.parameters['Test name']}.",
+                          f"Rank-Biserial r  and Pearson r will be calulcated for the {self.parameters['Test name']}.",
                           " ",
                           sep = "\n"*2)
 
-                r = stat / scipy.stats.rankdata(d_abs).sum()
-
-                result_table[self.parameters["Test name"]].append("Rank-Biserial r")
-                result_table["Results"].append(float(r))
+                results["Rank-Biserial r"] = results["w"] / descriptives["sum ranks"][-1]
+                results["Pearson r"] = results["z"] / numpy.sqrt(descriptives["obs"][-1])
 
 
             else:
@@ -347,7 +501,7 @@ class difference_test(object):
                     if es == "r":
                         r = stat / numpy.sqrt(stat**2 + dof)
 
-                        result_table[self.parameters["Test name"]].append("Rank-Biserial r")
+                        result_table[self.parameters["Test name"]].append("Point-Biserial r")
                         result_table["Results"].append(float(r))
 
 
@@ -356,87 +510,65 @@ class difference_test(object):
 
         # Getting the summary table ready - part 2
 
-        # Calculating standard error of the difference
-        if self.parameters["Test name"] == "Welch's t-test":
-            se_unpooled = numpy.sqrt( group1_info["Variance"] / group1_info["N"] +  group2_info["Variance"] / group2_info["N"]  )
 
-            ci_lower_diff, ci_upper_diff = scipy.stats.t.interval(self.parameters["Conf. Level"],
-                                                                  dof,
-                                                                  loc = diff["Mean"],
-                                                                  scale = se_unpooled)
-            diff["SE"] = float(se_unpooled)
-
-
-        elif self.parameters["Test name"] == "Paired samples t-test":
-            difference = group1 - group2
-
-            se = float(scipy.stats.sem(difference, nan_policy= 'omit'))
-
-            ci_lower_diff, ci_upper_diff = scipy.stats.t.interval(self.parameters["Conf. Level"],
-                                                                  dof,
-                                                                  loc = diff["Mean"],
-                                                                  scale = se)
-
-            diff["SE"] = se
-            diff["SD"] = float(difference.std(ddof = 1))
-
-
-
-        else:
-            var_pooled = ( (group1_info["N"] - 1)*group1_info["Variance"] + (group2_info["N"] - 1)*group2_info["Variance"] ) / (group1_info["N"] + group2_info["N"] - 2)
-
-            se_pooled = numpy.sqrt( (var_pooled / group1_info["N"])  +  (var_pooled / group2_info["N"])    )
-
-            ci_lower_diff, ci_upper_diff = scipy.stats.t.interval(self.parameters["Conf. Level"],
-                                                                  dof,
-                                                                  loc = diff["Mean"],
-                                                                  scale = se_pooled)
-            diff["SE"] = float(se_pooled)
 
 
         #diff[f"{int(self.parameters['Conf. Level'] * 100)}% Conf."] = float(ci_lower_diff)
         #diff["Interval"] = float(ci_upper_diff)
-        diff[f"{int(self.parameters['Conf. Level'] * 100)}% Conf. Interval"] = [ci_lower_diff, ci_upper_diff]
+        if self.parameters["Test name"] != "Wilcoxon signed-rank test":
+            diff[f"{int(self.parameters['Conf. Level'] * 100)}% Conf. Interval"] = [ci_lower_diff, ci_upper_diff]
+
+
+            # P value tails
+            #pval_lt = scipy.stats.t.cdf(stat, dof, loc = diff["Mean"], scale = diff["SE"])
+            #pval_rt = 1 - scipy.stats.t.cdf(stat, dof, loc = diff["Mean"], scale = diff["SE"])
+
+
+            group1_table = pandas.DataFrame.from_dict(group1_info, orient = 'index').T
+            group2_table = pandas.DataFrame.from_dict(group2_info, orient = 'index').T
+            combined_table = pandas.DataFrame.from_dict(combined, orient = 'index').T
+            diff_table = pandas.DataFrame.from_dict(diff, orient = 'index').T
+
+            summary_table = pandas.concat([group1_table, group2_table, combined_table, diff_table], ignore_index = True)
+            summary_table.replace(numpy.nan, ' ', inplace = True)
+
+            # Rounding the summary table
+            summary_table = summary_table.round(decimals)
+
+            result_table = pandas.DataFrame(result_table)
+            result_table = result_table.round(decimals)
+
+            # Rounding the confidence interval values
+            if self.parameters["Test name"] != "Wilcoxon signed-rank test":
+                for row in summary_table[f"{int(self.parameters['Conf. Level'] * 100)}% Conf. Interval"]:
+                    idx = 0
+                    for value in row:
+                        row[idx] = round(value, 4)
+                        idx +=1
 
 
 
-        group1_table = pandas.DataFrame.from_dict(group1_info, orient = 'index').T
-        group2_table = pandas.DataFrame.from_dict(group2_info, orient = 'index').T
-        combined_table = pandas.DataFrame.from_dict(combined, orient = 'index').T
-        diff_table = pandas.DataFrame.from_dict(diff, orient = 'index').T
+            # Returning the information
+            if return_type == "Dataframe":
+                if self.parameters["Test name"] == "Wilcoxon signed-rank test":
+                    return summary_table.iloc[:-2, :], result_table
+                elif self.parameters["Test name"] == "Paired samples t-test":
+                    return summary_table.drop(2), result_table
+                else:
+                    return summary_table, result_table
 
-        summary_table = pandas.concat([group1_table, group2_table, combined_table, diff_table], ignore_index = True)
-        summary_table.replace(numpy.nan, ' ', inplace = True)
+            if return_type == "Dictionary":
+                if self.parameters["Test name"] == "Wilcoxon signed-rank test":
+                    return summary_table.iloc[:-2, :].to_dict(), result_table.to_dict()
+                elif self.parameters["Test name"] == "Paired samples t-test":
+                    return summary_table.drop(2).to_dict(), result_table.to_dict()
+                else:
+                    return summary_table.to_dict(), result_table.to_dict()
 
-        # Rounding the summary table
-        summary_table = summary_table.round(decimals)
+        else:
+            if return_type == "Dataframe":
+                descriptives = pandas.DataFrame.from_dict(descriptives)
+                variance = pandas.DataFrame.from_dict(variance, orient = 'index').T
+                results = pandas.DataFrame.from_dict(results, orient = 'index').T
 
-        result_table = pandas.DataFrame(result_table)
-        result_table = result_table.round(decimals)
-
-        # Rounding the confidence interval values
-        for row in summary_table[f"{int(self.parameters['Conf. Level'] * 100)}% Conf. Interval"]:
-            idx = 0
-            for value in row:
-                row[idx] = round(value, 4)
-                idx +=1
-
-
-
-
-        # Returning the information
-        if return_type == "Dataframe":
-            if self.parameters["Test name"] == "Wilcoxon signed-rank test":
-                return summary_table.iloc[:-2, :], result_table
-            elif self.parameters["Test name"] == "Paired samples t-test":
-                return summary_table.drop(2), result_table
-            else:
-                return summary_table, result_table
-
-        if return_type == "Dictionary":
-            if self.parameters["Test name"] == "Wilcoxon signed-rank test":
-                return summary_table.iloc[:-2, :].to_dict(), result_table.to_dict()
-            elif self.parameters["Test name"] == "Paired samples t-test":
-                return summary_table.drop(2).to_dict(), result_table.to_dict()
-            else:
-                return summary_table.to_dict(), result_table.to_dict()
+            return descriptives, variance, results

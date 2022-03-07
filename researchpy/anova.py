@@ -18,11 +18,16 @@ from .utility import *
 
 
 class anova(model):
+    """
+
+    Need to validate r^2 and r^2 adjusted for factors
+
+    """
 
     def __init__(self, formula_like, data = {}, sum_of_squares = 3, conf_level = 0.95):
         super().__init__(formula_like, data, matrix_type = 1)
 
-        self.grand_mean = numpy.sum(self.IV, axis = 0)
+        self.grand_mean = numpy.sum(self.DV, axis = 0)
 
         self.model_data = {}
 
@@ -95,6 +100,17 @@ class anova(model):
         self.model_data["f_value_model"] = float(self.model_data["msr"] / self.model_data["mse"])
         self.model_data["f_p_value_model"] = scipy.stats.f.sf(self.model_data["f_value_model"], self.model_data["degrees_of_freedom_model"], self.model_data["degrees_of_freedom_residual"])
 
+
+        ### R^2 Values
+        # Model
+        self.model_data["r squared"] = (self.model_data["sum_of_square_model"] / self.model_data["sum_of_square_total"])
+        self.model_data["r squared adj."] = 1 - (self.model_data["degrees_of_freedom_total"]  / self.model_data["degrees_of_freedom_residual"]) * (self.model_data["sum_of_square_residual"] / self.model_data["sum_of_square_total"])
+        self.model_data["eta_squared"] = self.model_data["r squared"]
+        self.model_data["omega_squared"] = (self.model_data["degrees_of_freedom_model"] * (self.model_data["msr"] - self.model_data["mse"])) / (self.model_data["sum_of_square_total"] + self.model_data["mse"])
+
+
+
+
         ###########
 
         factor_effects = {"Source" : [],
@@ -102,7 +118,9 @@ class anova(model):
                           "Degrees of Freedom" : [],
                           "Mean Squares" : [],
                           "F value" : [],
-                          "p-value" : []}
+                          "p-value" : [],
+                          "eta_squared" : [],
+                          "omega_squared" : []}
 
 
 
@@ -167,9 +185,9 @@ class anova(model):
                     f_value_model = msr_f / self.model_data["mse"]
                     f_p_value_model = scipy.stats.f.sf(f_value_model, degrees_of_freedom_factor, self.model_data["degrees_of_freedom_residual"])
 
-                    ### Effect Size Measure(s) [Haven't validated this yet]
-                    r_squared = sum_of_square_factor / self.model_data["sum_of_square_total"]
-                    r_squared_adjusted = 1 - (degrees_of_freedom_factor / self.model_data["degrees_of_freedom_residual"]) * sum_of_square_residual / self.model_data["sum_of_square_total"]
+                    ### Effect Size Measure(s)
+                    eta_squared = sum_of_square_factor / (sum_of_square_factor + self.model_data["sum_of_square_residual"])
+                    omega_squared = (sum_of_square_factor - (degrees_of_freedom_factor * self.model_data["mse"])) / (sum_of_square_factor + (self.nobs - degrees_of_freedom_factor) * self.model_data["mse"])
 
 
 
@@ -183,10 +201,15 @@ class anova(model):
                     factor_effects["F value"].append(float(f_value_model))
                     factor_effects["p-value"].append(float(f_p_value_model))
 
-                    self.factor_effects = factor_effects
+                    factor_effects["eta_squared"].append(float(eta_squared))
+                    factor_effects["omega_squared"].append(float(omega_squared))
+                    #factor_effects["r squared"].append("")
+                    #factor_effects["r squared adj."].append("")
 
                     # Setting new Sum of Square Residual
                     previous_sum_of_squares_error = sum_of_square_residual
+
+                self.factor_effects = factor_effects
 
 
         elif sum_of_squares in ["II", 2]:
@@ -268,8 +291,8 @@ class anova(model):
 
 
                 ### Effect Size Measure(s)
-                r_squared = sum_of_square_factor / self.model_data["sum_of_square_total"]
-                r_squared_adjusted = 1 - (degrees_of_freedom_factor / self.model_data["degrees_of_freedom_residual"]) * self.model_data["sum_of_square_residual"] / self.model_data["sum_of_square_total"]
+                eta_squared = sum_of_square_factor / (sum_of_square_factor + self.model_data["sum_of_square_residual"])
+                omega_squared = (sum_of_square_factor - (degrees_of_freedom_factor * self.model_data["mse"])) / (sum_of_square_factor + (self.nobs - degrees_of_freedom_factor) * self.model_data["mse"])
 
 
 
@@ -281,7 +304,12 @@ class anova(model):
                 factor_effects["F value"].append(float(f_value_model))
                 factor_effects["p-value"].append(float(f_p_value_model))
 
-                self.factor_effects = factor_effects
+                factor_effects["eta_squared"].append(float(eta_squared))
+                factor_effects["omega_squared"].append(float(omega_squared))
+                #factor_effects["r squared"].append("")
+                #factor_effects["r squared adj."].append("")
+
+            self.factor_effects = factor_effects
 
 
 
@@ -296,14 +324,65 @@ class anova(model):
                 although not worthwhile if the interaction is significant)
             """
 
-            ## May need to make the string editing part more robust - test effect on interaction terms
-            the_terms_3 = [new_term.replace(")", ", Sum)") for new_term in self._IV_design_info.term_names]
+
+            reference_pattern = re.compile(r'(?<=,|\s)(Treatment\(.*\))(?=\))')
+
+            the_terms_3 = []
+            for term in self._IV_design_info.term_names:
+
+                if "Treatment" in term:
+                    split_terms = term.split(":")
+
+                    if len(split_terms) == 1:
+                        the_terms_3.append(re.sub(reference_pattern, 'Sum', split_terms[0]))
+
+                    else:
+                        interaction_terms = []
+
+                        for intterm in split_terms:
+                            if "Treatment" in intterm:
+                                interaction_terms.append(re.sub(reference_pattern, 'Sum', intterm))
+                            else:
+                                interaction_terms.append(intterm.replace(")", ", Sum)"))
+
+                        the_terms_3.append(':'.join(interaction_terms))
+
+                else:
+                    the_terms_3.append(term.replace(")", ", Sum)"))
+
+
+
             full_model = self._DV_design_info.term_names[0] + " ~ " + " + ".join(the_terms_3[1:])
             y, x_full = patsy.dmatrices(full_model, data, eval_env=1)
 
 
             for current_term in the_terms_3:
-                terms_in_model = [new_term.replace(")", ", Sum)") for new_term in self._IV_design_info.term_names]
+
+                terms_in_model = []
+                for term in self._IV_design_info.term_names:
+                    if "Treatment" in term:
+                        split_terms = term.split(":")
+
+                        if len(split_terms) == 1:
+                            terms_in_model.append(re.sub(reference_pattern, 'Sum', split_terms[0]))
+
+                        else:
+                            interaction_terms = []
+
+                            for intterm in split_terms:
+                                if "Treatment" in intterm:
+                                    interaction_terms.append(re.sub(reference_pattern, 'Sum', intterm))
+
+                                else:
+                                    interaction_terms.append(intterm.replace(")", ", Sum)"))
+
+                            terms_in_model.append(':'.join(interaction_terms))
+
+                    else:
+                        terms_in_model.append(term.replace(")", ", Sum)"))
+
+
+
                 compare_model = self._IV_design_info.term_names
 
                 if current_term.strip().upper() == "INTERCEPT":
@@ -350,9 +429,8 @@ class anova(model):
 
 
                 ### Effect Size Measure(s)
-                r_squared = sum_of_square_factor / self.model_data["sum_of_square_total"]
-                r_squared_adjusted = 1 - (degrees_of_freedom_factor / self.model_data["degrees_of_freedom_residual"]) * self.model_data["sum_of_square_residual"] / self.model_data["sum_of_square_total"]
-
+                eta_squared = sum_of_square_factor / (sum_of_square_factor + self.model_data["sum_of_square_residual"])
+                omega_squared = (sum_of_square_factor - (degrees_of_freedom_factor * self.model_data["mse"])) / (sum_of_square_factor + (self.nobs - degrees_of_freedom_factor) * self.model_data["mse"])
 
 
                 # Updating items
@@ -363,6 +441,13 @@ class anova(model):
                 factor_effects["F value"].append(float(f_value_model))
                 factor_effects["p-value"].append(float(f_p_value_model))
 
+
+                factor_effects["eta_squared"].append(float(eta_squared))
+                factor_effects["omega_squared"].append(float(omega_squared))
+                #factor_effects["r squared"].append("")
+                #factor_effects["r squared adj."].append("")
+
+
                 self.factor_effects = factor_effects
 
 
@@ -371,6 +456,15 @@ class anova(model):
 
         if pretty_format == True:
 
+            descriptives = {
+
+                    "Number of obs = " : self.nobs,
+                    "Root MSE = " : round(self.model_data["root_mse"], decimals),
+                    "R-squared = " : round(self.model_data["r squared"], decimals),
+                    "Adj R-squared = " : round(self.model_data["r squared adj."], decimals)
+
+                }
+
             top = {
 
                     "Source" : ["Model", ''],
@@ -378,17 +472,21 @@ class anova(model):
                     "Degrees of Freedom" : [round(self.model_data["degrees_of_freedom_model"], decimals), ''],
                     "Mean Squares" : [round(self.model_data["msr"], decimals), ''],
                     "F value" : [round(self.model_data["f_value_model"], decimals), ''],
-                    "p-value" : [round(self.model_data["f_p_value_model"], decimals), '']
+                    "p-value" : [round(self.model_data["f_p_value_model"], decimals), ''],
+                    "eta_squared" : [round(self.model_data["eta_squared"], decimals), ''],
+                    "omega_squared" : [round(self.model_data["omega_squared"], decimals), '']
 
                     }
 
             factors = self.factor_effects.copy()
-            factors["Source"] = name_cleaner(self._IV_design_info.term_names[1:])
+            factors["Source"] = [patsy_term_cleaner(term) for term in self._IV_design_info.term_names[1:]]
             rounder(factors["Sum of Squares"], decimals = decimals)
             rounder(factors["Degrees of Freedom"], decimals = decimals)
             rounder(factors["Mean Squares"], decimals = decimals)
             rounder(factors["F value"], decimals = decimals)
             rounder(factors["p-value"], decimals = decimals)
+            rounder(factors["eta_squared"], decimals = decimals)
+            rounder(factors["omega_squared"], decimals = decimals)
 
             bottom = {
 
@@ -397,7 +495,9 @@ class anova(model):
                     "Degrees of Freedom" : ['', round(self.model_data["degrees_of_freedom_residual"], decimals), round(self.model_data["degrees_of_freedom_total"], decimals)],
                     "Mean Squares" : ['', round(self.model_data["mse"], decimals), round(self.model_data["mst"], decimals)],
                     "F value" : ['', '', ''],
-                    "p-value" : ['', '', '']
+                    "p-value" : ['', '', ''],
+                    "eta_squared" : ['', '', ''],
+                    "omega_squared" : ['', '', '']
 
                     }
 
@@ -409,11 +509,23 @@ class anova(model):
                     "Degrees of Freedom" : top["Degrees of Freedom"] + factors["Degrees of Freedom"] + bottom["Degrees of Freedom"],
                     "Mean Squares" : top["Mean Squares"] + factors["Mean Squares"] + bottom["Mean Squares"],
                     "F value" : top["F value"] + factors["F value"] + bottom["F value"],
-                    "p-value" : top["p-value"] + factors["p-value"] + bottom["p-value"]
+                    "p-value" : top["p-value"] + factors["p-value"] + bottom["p-value"],
+                    "eta_squared" : top["eta_squared"] + factors["eta_squared"] + bottom["eta_squared"],
+                    "omega_squared" : top["omega_squared"] + factors["omega_squared"] + bottom["omega_squared"]
 
                     }
 
         else:
+
+            descriptives = {
+
+                    "Number of obs = " : self.nobs,
+                    "Root MSE = " : round(self.model_data["root_mse"], decimals),
+                    "R-squared = " : round(self.model_data["r squared"], decimals),
+                    "Adj R-squared = " : round(self.model_data["r squared adj."], decimals)
+
+                }
+
 
             top = {
 
@@ -427,7 +539,7 @@ class anova(model):
                     }
 
             factors = self.factor_effects.copy()
-            name_cleaner(factors["Source"])
+            patsy_term_cleaner(factors["Source"])
             rounder(factors["Sum of Squares"], decimals = decimals)
             rounder(factors["Degrees of Freedom"], decimals = decimals)
             rounder(factors["Mean Squares"], decimals = decimals)
@@ -461,12 +573,89 @@ class anova(model):
 
         if return_type == "Dataframe":
 
-            return pandas.DataFrame.from_dict(results)
+            print("\n"*2, "Note: Effect size values for factors are partial.", "\n"*2)
+            return (pandas.DataFrame.from_dict(descriptives, orient = "index"), pandas.DataFrame.from_dict(results))
+
 
         elif return_type == "Dictionary":
 
-            return results
+            print("\n"*2, "Note: Effect size values for factors are partial.", "\n"*2)
+            return (descriptives, results)
 
         else:
 
             print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
+
+
+
+
+    def regression_table(self, return_type = "Dataframe", decimals = 4, pretty_format = True, alpha = 0.95):
+
+        ### Variance-covariance matrices
+        # Non-robust - from Applied Linear Statistical Models, pg. 203
+        self.variance_covariance_residual_matrix = numpy.matrix(self.model_data["mse"] * (self.model_data["i"] - self.model_data["h"]))
+
+
+        self.variance_covariance_beta_matrix = numpy.matrix(self.model_data["mse"] * numpy.linalg.inv(self.IV.T @ self.IV))
+
+        #if robust_standard_errors == False:
+            #self.beta_variance_covariance_matrix = np.matrix(self.mse * np.linalg.inv(self.x.T @ self.x))
+        #elif robust_standard_errors == True:
+            ## Not implemented yet so it's same as non-robust
+         #   self.beta_variance_covariance_matrix = np.matrix(self.mse * np.linalg.inv(self.x.T @ self.x))
+
+
+
+        ### Standard Errors
+        self.standard_errors = (numpy.array(numpy.sqrt(self.variance_covariance_beta_matrix.diagonal()))).T
+
+
+
+
+        ### Confidence Intrvals
+        self.conf_int_lower = []
+        self.conf_int_upper = []
+
+        for beta, se in zip(self.model_data["betas"], self.standard_errors):
+            lower, upper = scipy.stats.t.interval(alpha, self.model_data["degrees_of_freedom_residual"], loc= beta, scale= se)
+
+            self.conf_int_lower.append(float(lower))
+            self.conf_int_upper.append(float(upper))
+
+
+
+        ### T-stastics
+        self.t_stastics = self.model_data["betas"] * (1 / self.standard_errors)
+        # Two-sided p-value
+        self.t_p_values = numpy.array([float(scipy.stats.t.sf(numpy.abs(t), self.model_data["degrees_of_freedom_residual"]) * 2) for t in self.t_stastics])
+
+
+
+        ## Creating variable table information
+        self.regression_description_info = {
+
+            self._DV_design_info.term_names[0] : ["Coef.", "Std. Err.", "t", "p-value", "95% Conf. Interval"],
+
+            }
+
+
+        self.regression_info = {self._DV_design_info.term_names[0] : [],
+                                "Coef." : [],
+                                "Std. Err." : [],
+                                "t" : [],
+                                "p-value": [],
+                                "95% Conf. Interval": []}
+
+
+        for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names, self.model_data["betas"], self.standard_errors, self.t_stastics, self.t_p_values, self.conf_int_lower, self.conf_int_upper):
+
+            self.regression_info[self._DV_design_info.term_names[0]].append(column)
+            self.regression_info["Coef."].append(beta[0])
+            self.regression_info["Std. Err."].append(stderr[0])
+            self.regression_info["t"].append(t[0])
+            self.regression_info["p-value"].append(p)
+            self.regression_info["95% Conf. Interval"].append([l_ci, u_ci])
+
+
+
+        return self.regression_info

@@ -30,8 +30,10 @@ Updated on December 23, 2018
 
 
 
-
-def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances= True, paired= False, wilcox_parameters = {"zero_method" : "pratt", "correction" : False, "mode" : "auto"}):
+def ttest(group1, group2, group1_name= None, group2_name= None,
+           equal_variances= True, paired= False,
+           wilcox_parameters = {"zero_method" : "pratt", "correction" : False, "mode" : "auto"},
+           welch_dof = "satterthwaite"):
 
     # Joining groups for table and calculating group mean difference
     groups = group1.append(group2, ignore_index= True)
@@ -45,9 +47,12 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         t_val, p_val = scipy.stats.ttest_ind(group1, group2, nan_policy= 'omit')
         dof = group1.count() + group2.count() - 2
 
-        # Confidence interval
+        # Less than or greater than 0 p_vals
         lt_p_val = scipy.stats.t.cdf(t_val, dof)
         rt_p_val = 1 - scipy.stats.t.cdf(t_val, dof)
+
+
+
 
         # Effect sizes
         # Cohen's d
@@ -66,22 +71,49 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         delta = (group1.mean() - group2.mean()) / group1.std()
 
         # Pearson r
-        r = numpy.sqrt(abs(t_val)**2 / ((abs(t_val)**2) + dof))
+        #r = numpy.sqrt(t_val**2 / ((t_val**2) + dof))
 
-        # Rank-Biserial r -- should I add?
-        # r = t_val / numpy.sqrt(t_val**2 + dof)
+        # Point-Biserial r -- should I add?
+        r = t_val / numpy.sqrt(t_val**2 + dof)
 
 
     elif equal_variances == False and paired == False:
-        test = "Welch's t-test"
-        t_val, p_val = scipy.stats.ttest_ind(group1, group2, equal_var = False,
-                                             nan_policy= 'omit')
-        ## Welch-Satterthwaite Degrees of Freedom ##
-        dof = -2 + (((group1.var()/group1.count()) + (group2.var()/group2.count()))**2 / ((group1.var()/group1.count())**2 / (group1.count()+1) + (group2.var()/group2.count())**2 / (group2.count()+1)))
 
-        # Confidence interval
+        ## This p-value is the Welch-Satterthwaite p-value ##
+        t_val, p_val = scipy.stats.ttest_ind(group1, group2, equal_var = False,
+                                                 nan_policy= 'omit')
+
+        ## Determining which version of the Welch's t-test to use ##
+        if welch_dof == "satterthwaite":
+
+            test = "Welch-Satterthwaite t-test"
+
+            ## Satterthwaite (1946) Degrees of Freedom ##
+            dof = ((group1.var()/group1.count()) + (group2.var()/group2.count()))**2 / ((group1.var()/group1.count())**2 / (group1.count()-1) + (group2.var()/group2.count())**2 / (group2.count()-1))
+
+
+
+        elif welch_dof == "welch":
+            test = "Welch's t-test"
+
+            ## Welch (1947) Degrees of Freedom ##
+            dof = -2 + (((group1.var()/group1.count()) + (group2.var()/group2.count()))**2 / ((group1.var()/group1.count())**2 / (group1.count()+1) + (group2.var()/group2.count())**2 / (group2.count()+1)))
+
+            p_val = 2 * min((1 - scipy.stats.t.cdf(t_val, dof)), scipy.stats.t.cdf(t_val, dof))
+
+
+
+        # Less than or greater than 0 p_vals
         lt_p_val = scipy.stats.t.cdf(t_val, dof)
         rt_p_val = 1 - scipy.stats.t.cdf(t_val, dof)
+
+
+        if t_val > 0:
+            temp = rt_p_val
+            rt_p_val = lt_p_val
+            lt_p_val = temp
+
+
 
         # Effect size
         # Cohen's d
@@ -95,10 +127,10 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         delta = (group1.mean() - group2.mean()) / group1.std()
 
         # Pearson r
-        r = numpy.sqrt(abs(t_val)**2 / ((abs(t_val)**2) + dof))
+        #r = numpy.sqrt(t_val**2 / ((t_val**2) + dof))
 
         # Point-Biserial r -- should I add?
-        # r = t_val / numpy.sqrt(t_val**2 + dof)
+        r = t_val / numpy.sqrt(t_val**2 + dof)
 
 
 
@@ -114,9 +146,15 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         t_val, p_val = scipy.stats.ttest_rel(group1, group2)
         dof = group1.count() - 1
 
-        # Confidence interval
+        # Less than or greater than 0 p_vals
         lt_p_val = scipy.stats.t.cdf(t_val, dof)
         rt_p_val = 1 - scipy.stats.t.cdf(t_val, dof)
+
+
+        if t_val > 0:
+            temp = rt_p_val
+            rt_p_val = lt_p_val
+            lt_p_val = temp
 
         # Effect sizes
         # Cohen's d
@@ -133,10 +171,10 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         delta = (group1.mean() - group2.mean()) / group1.std()
 
         # Pearson r
-        r = numpy.sqrt(abs(t_val)**2 / ((abs(t_val)**2) + dof))
+        #r = numpy.sqrt(t_val**2 / ((t_val**2) + dof))
 
         # Point-Biserial r -- should I add?
-        # r = t_val / numpy.sqrt(t_val**2 + dof)
+        r = t_val / numpy.sqrt(t_val**2 + dof)
 
 
 
@@ -237,6 +275,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         ##  Pearson r = z / square_root(N)
         pr = z / numpy.sqrt(total_n)
 
+        # Rank-Biserial r
         pbr = t_val / total_sum_ranks
 
 
@@ -349,7 +388,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         table2.iloc[3,0] = f"Z value = "
         table2.iloc[3,1] = round(z, 4)
 
-        table2.iloc[4,0] = f"Two sided p value = "
+        table2.iloc[4,0] = f"p value = "
         table2.iloc[4,1] = round(p_val, 4)
 
         table2.iloc[5,0] = f"Rank-Biserial r = "
@@ -393,7 +432,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         table2.iloc[8,0] = f"Glass's delta = "
         table2.iloc[8,1] = round(delta, 4)
 
-        table2.iloc[9,0] = f"Pearson's r = "
+        table2.iloc[9,0] = f"Point-Biserial r = "
         table2.iloc[9,1] = round(r, 4)
 
         return table, table2
