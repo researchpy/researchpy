@@ -17,10 +17,12 @@ TO DO
   <DONE> -difference_test-
   <DONE> -ttest-
   <DONE> -signrank-
-  <> -anova-
+  <DONE> -anova-
       <DONE> Validated outcome model with different sum of squares & model effect size.
       <DONE> Want to add variable effect sizes where "r squared" and "r squared adj." currently are
               > Added the calculations to the documentation
+      <DONE> finish -regression_table- function
+  <> Validate Effect Size Measures
 
 [DONE] Add the new helper functions to Researchpy
 
@@ -32,9 +34,6 @@ TO DO
 [DONE] Ensure name_cleaner works for formulas using "C(disease, Treatment(value))" where
       disease is the variable name and value is the category which is desired to be the reference
 
-
-[] Validate Effect Size Measures
-    () All checked out except for ranksign
 
 [] Add documentation about:
   <> basic_stats

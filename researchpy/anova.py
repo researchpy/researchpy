@@ -19,13 +19,8 @@ from .utility import *
 
 
 class anova(model):
-    """
 
-    Need to validate r^2 and r^2 adjusted for factors
-
-    """
-
-    def __init__(self, formula_like, data = {}, sum_of_squares = 3, conf_level = 0.95):
+    def __init__(self, formula_like, data = {}, sum_of_squares = 3):
         super().__init__(formula_like, data, matrix_type = 1)
 
         self.grand_mean = numpy.sum(self.DV, axis = 0)
@@ -590,7 +585,7 @@ class anova(model):
 
 
 
-    def regression_table(self, return_type = "Dataframe", decimals = 4, pretty_format = True, alpha = 0.95):
+    def regression_table(self, return_type = "Dataframe", decimals = 4, pretty_format = True, conf_level = 0.95):
 
         ### Variance-covariance matrices
         # Non-robust - from Applied Linear Statistical Models, pg. 203
@@ -618,7 +613,7 @@ class anova(model):
         self.conf_int_upper = []
 
         for beta, se in zip(self.model_data["betas"], self.standard_errors):
-            lower, upper = scipy.stats.t.interval(alpha, self.model_data["degrees_of_freedom_residual"], loc= beta, scale= se)
+            lower, upper = scipy.stats.t.interval(conf_level, self.model_data["degrees_of_freedom_residual"], loc= beta, scale= se)
 
             self.conf_int_lower.append(float(lower))
             self.conf_int_upper.append(float(upper))
@@ -640,36 +635,37 @@ class anova(model):
             }
 
 
-        self.regression_info = {self._DV_design_info.term_names[0] : [],
+        regression_info = {self._DV_design_info.term_names[0] : [],
                                 "Coef." : [],
                                 "Std. Err." : [],
                                 "t" : [],
                                 "p-value": [],
-                                "95% Conf. Interval": []}
+                                f"{int(conf_level * 100)}% Conf. Interval": []}
 
 
         for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names, self.model_data["betas"], self.standard_errors, self.t_stastics, self.t_p_values, self.conf_int_lower, self.conf_int_upper):
 
-            self.regression_info[self._DV_design_info.term_names[0]].append(column)
-            self.regression_info["Coef."].append(round(beta[0], decimals))
-            self.regression_info["Std. Err."].append(round(stderr[0], decimals))
-            self.regression_info["t"].append(round(t[0], decimals))
-            self.regression_info["p-value"].append(round(p, decimals))
-            self.regression_info["95% Conf. Interval"].append([round(l_ci, decimals), round(u_ci, decimals)])
+            regression_info[self._DV_design_info.term_names[0]].append(column)
+            regression_info["Coef."].append(round(beta[0], decimals))
+            regression_info["Std. Err."].append(round(stderr[0], decimals))
+            regression_info["t"].append(round(t[0], decimals))
+            regression_info["p-value"].append(round(p, decimals))
+            regression_info[f"{int(conf_level * 100)}% Conf. Interval"].append([round(l_ci, decimals), round(u_ci, decimals)])
 
+
+        regression_info = base_table(self._patsy_factor_information, self._mapping, self._rp_factor_information, pandas.DataFrame.from_dict(regression_info))
 
 
 
         if return_type == "Dataframe":
 
-            return base_table(self._patsy_factor_information, self._mapping, self._rp_factor_information, pandas.DataFrame.from_dict(self.regression_info))
+            return regression_info
 
         elif return_type == "Dictionary":
 
-            return self.regression_info
+
+            return regression_info
 
         else:
 
             print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
-
-            
