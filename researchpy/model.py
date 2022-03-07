@@ -1,4 +1,13 @@
 
+# Used
+import numpy
+import scipy.stats
+import patsy
+import pandas
+
+from .summary import summarize
+from .model import model
+from .utility import *
 
 
 class model():
@@ -10,6 +19,7 @@ class model():
     with the intercept, while a value of 0 will not.
 
     """
+
 
     def __init__(self, formula_like, data = {}, matrix_type = 1):
         # matrix_type = 1 includes intercept
@@ -29,6 +39,7 @@ class model():
         self._DV_design_info  = self.DV.design_info
         self._IV_design_info  = self.IV.design_info
 
+        ## My design information ##
+        self.DV_name = self.DV.design_info.term_names[0]
 
-
-        
+        self._patsy_factor_information, self._mapping, self._rp_factor_information  = variable_information(self.IV.design_info.term_names, self.IV.design_info.column_names, data)

@@ -17,6 +17,7 @@ from .utility import *
 
 
 
+
 class anova(model):
     """
 
@@ -650,12 +651,25 @@ class anova(model):
         for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names, self.model_data["betas"], self.standard_errors, self.t_stastics, self.t_p_values, self.conf_int_lower, self.conf_int_upper):
 
             self.regression_info[self._DV_design_info.term_names[0]].append(column)
-            self.regression_info["Coef."].append(beta[0])
-            self.regression_info["Std. Err."].append(stderr[0])
-            self.regression_info["t"].append(t[0])
-            self.regression_info["p-value"].append(p)
-            self.regression_info["95% Conf. Interval"].append([l_ci, u_ci])
+            self.regression_info["Coef."].append(round(beta[0], decimals))
+            self.regression_info["Std. Err."].append(round(stderr[0], decimals))
+            self.regression_info["t"].append(round(t[0], decimals))
+            self.regression_info["p-value"].append(round(p, decimals))
+            self.regression_info["95% Conf. Interval"].append([round(l_ci, decimals), round(u_ci, decimals)])
 
 
 
-        return self.regression_info
+
+        if return_type == "Dataframe":
+
+            return base_table(self._patsy_factor_information, self._mapping, self._rp_factor_information, pandas.DataFrame.from_dict(self.regression_info))
+
+        elif return_type == "Dictionary":
+
+            return self.regression_info
+
+        else:
+
+            print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
+
+            
