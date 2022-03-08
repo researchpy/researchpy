@@ -12,7 +12,7 @@
 
 TO DO
 =====
-[] Validate:
+[DONE] Validate:
   <DONE> -summarize-
   <DONE> -difference_test-
   <DONE> -ttest-
@@ -22,7 +22,13 @@ TO DO
       <DONE> Want to add variable effect sizes where "r squared" and "r squared adj." currently are
               > Added the calculations to the documentation
       <DONE> finish -regression_table- function
-  <> Validate Effect Size Measures
+
+  <! DONE !> Validate Effect Size Measures
+    <DONE> difference_test
+    <DONE> ttest
+    <DONE> ANOVA
+        (DONE) R, R^2, Eta^2, Partial Eta^2, and Omega^2 are perfect matches
+        () Partial Omega^2 doesn't match Stata but the math checks out
 
 [DONE] Add the new helper functions to Researchpy
 
@@ -35,8 +41,11 @@ TO DO
       disease is the variable name and value is the category which is desired to be the reference
 
 
+[] ANOVA -regression_table()- output has something funky going on
+
+
 [] Add documentation about:
   <> basic_stats
-  <In progress> anova
+  <DONE> anova
   <> model
   <> signrank test

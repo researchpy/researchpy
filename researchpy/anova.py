@@ -101,8 +101,8 @@ class anova(model):
         # Model
         self.model_data["r squared"] = (self.model_data["sum_of_square_model"] / self.model_data["sum_of_square_total"])
         self.model_data["r squared adj."] = 1 - (self.model_data["degrees_of_freedom_total"]  / self.model_data["degrees_of_freedom_residual"]) * (self.model_data["sum_of_square_residual"] / self.model_data["sum_of_square_total"])
-        self.model_data["eta_squared"] = self.model_data["r squared"]
-        self.model_data["omega_squared"] = (self.model_data["degrees_of_freedom_model"] * (self.model_data["msr"] - self.model_data["mse"])) / (self.model_data["sum_of_square_total"] + self.model_data["mse"])
+        self.model_data["Eta squared"] = self.model_data["r squared"]
+        self.model_data["Omega squared"] = (self.model_data["degrees_of_freedom_model"] * (self.model_data["msr"] - self.model_data["mse"])) / (self.model_data["sum_of_square_total"] + self.model_data["mse"])
 
 
 
@@ -115,8 +115,8 @@ class anova(model):
                           "Mean Squares" : [],
                           "F value" : [],
                           "p-value" : [],
-                          "eta_squared" : [],
-                          "omega_squared" : []}
+                          "Eta squared" : [],
+                          "Omega squared" : []}
 
 
 
@@ -197,8 +197,8 @@ class anova(model):
                     factor_effects["F value"].append(float(f_value_model))
                     factor_effects["p-value"].append(float(f_p_value_model))
 
-                    factor_effects["eta_squared"].append(float(eta_squared))
-                    factor_effects["omega_squared"].append(float(omega_squared))
+                    factor_effects["Eta squared"].append(float(eta_squared))
+                    factor_effects["omega squared"].append(float(omega_squared))
                     #factor_effects["r squared"].append("")
                     #factor_effects["r squared adj."].append("")
 
@@ -300,8 +300,8 @@ class anova(model):
                 factor_effects["F value"].append(float(f_value_model))
                 factor_effects["p-value"].append(float(f_p_value_model))
 
-                factor_effects["eta_squared"].append(float(eta_squared))
-                factor_effects["omega_squared"].append(float(omega_squared))
+                factor_effects["Eta squared"].append(float(eta_squared))
+                factor_effects["Omega squared"].append(float(omega_squared))
                 #factor_effects["r squared"].append("")
                 #factor_effects["r squared adj."].append("")
 
@@ -438,8 +438,8 @@ class anova(model):
                 factor_effects["p-value"].append(float(f_p_value_model))
 
 
-                factor_effects["eta_squared"].append(float(eta_squared))
-                factor_effects["omega_squared"].append(float(omega_squared))
+                factor_effects["Eta squared"].append(float(eta_squared))
+                factor_effects["Omega squared"].append(float(omega_squared))
                 #factor_effects["r squared"].append("")
                 #factor_effects["r squared adj."].append("")
 
@@ -469,8 +469,8 @@ class anova(model):
                     "Mean Squares" : [round(self.model_data["msr"], decimals), ''],
                     "F value" : [round(self.model_data["f_value_model"], decimals), ''],
                     "p-value" : [round(self.model_data["f_p_value_model"], decimals), ''],
-                    "eta_squared" : [round(self.model_data["eta_squared"], decimals), ''],
-                    "omega_squared" : [round(self.model_data["omega_squared"], decimals), '']
+                    "Eta squared" : [round(self.model_data["Eta squared"], decimals), ''],
+                    "Omega squared" : [round(self.model_data["Omega squared"], decimals), '']
 
                     }
 
@@ -481,8 +481,8 @@ class anova(model):
             rounder(factors["Mean Squares"], decimals = decimals)
             rounder(factors["F value"], decimals = decimals)
             rounder(factors["p-value"], decimals = decimals)
-            rounder(factors["eta_squared"], decimals = decimals)
-            rounder(factors["omega_squared"], decimals = decimals)
+            rounder(factors["Eta squared"], decimals = decimals)
+            rounder(factors["Omega squared"], decimals = decimals)
 
             bottom = {
 
@@ -492,8 +492,8 @@ class anova(model):
                     "Mean Squares" : ['', round(self.model_data["mse"], decimals), round(self.model_data["mst"], decimals)],
                     "F value" : ['', '', ''],
                     "p-value" : ['', '', ''],
-                    "eta_squared" : ['', '', ''],
-                    "omega_squared" : ['', '', '']
+                    "Eta squared" : ['', '', ''],
+                    "Omega squared" : ['', '', '']
 
                     }
 
@@ -506,8 +506,8 @@ class anova(model):
                     "Mean Squares" : top["Mean Squares"] + factors["Mean Squares"] + bottom["Mean Squares"],
                     "F value" : top["F value"] + factors["F value"] + bottom["F value"],
                     "p-value" : top["p-value"] + factors["p-value"] + bottom["p-value"],
-                    "eta_squared" : top["eta_squared"] + factors["eta_squared"] + bottom["eta_squared"],
-                    "omega_squared" : top["omega_squared"] + factors["omega_squared"] + bottom["omega_squared"]
+                    "Eta squared" : top["Eta squared"] + factors["Eta squared"] + bottom["Eta squared"],
+                    "Omega squared" : top["Omega squared"] + factors["Omega squared"] + bottom["Omega squared"]
 
                     }
 

@@ -154,7 +154,7 @@ def variable_information(term_names, column_names, data):
 
     for factor in term_names:
 
-        if factor == "Intercept" or "C(" in factor == False:
+        if factor == "Intercept" or "C(" not in factor:
 
             my_factor_information[factor] = factor
             patsy_factor_information[factor] = factor

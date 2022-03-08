@@ -7,10 +7,49 @@ import scipy.stats
 class signrank(object):
 
 
-    def __init__(self, group1, group2, zero_method = "pratt", correction = False, mode = "auto"):
+    def __init__(self, formula_like = None, data = {}, group1 = None, group2 = None, zero_method = "pratt", correction = False, mode = "auto"):
 
-        self.group1 = group1
-        self.group2 = group2
+
+
+        if (formula_like is None and len(data) == 0) and (group1 is None and group2 is None):
+            return print(" ",
+                         "Please provide data to analyze by using formula_like and data, or passing the data as array-like objects using group1 and group2.",
+                         " ",
+                         sep = "\n"*2)
+
+        if (formula_like is not None and len(data) != 0) and (group1 is not None or group2 is not None):
+            return print(" ",
+                         "User passed too many data options. Use either -formula_like- and -data- or group1 and group2."
+                         " ",
+                         sep = "\n"*2)
+
+        if formula_like is not None and len(data) == 0:
+            return print(" ",
+                         "Please provide data to analyze by using the -data- parameter."
+                         " ",
+                         sep = "\n"*2)
+
+        if (group1 is None and group2 is not None) or (group1 is not None and group2 is None):
+            return print(" ",
+                         "Please provide both groups data."
+                         " ",
+                         sep = "\n"*2)
+
+
+        if formula_like is not None:
+            DV, IV = patsy.dmatrices(formula_like + "- 1", data, 1)
+
+            group1, group2 = numpy.hsplit(IV, 2)
+
+            self.group1 = DV[group1 == 1]
+            self.group2 = DV[group2 == 1]
+
+        else:
+            self.group1 = group1
+            self.group2 = group2
+
+
+
 
         self.zero_method = zero_method
         self.correction = correction
@@ -83,7 +122,7 @@ class signrank(object):
 
         # Calculating the differences between groups
         difference = self.group1 - self.group2
-
+        difference = numpy.reshape(difference, (difference.shape[0], ))
 
         if self.zero_method == "pratt":
 

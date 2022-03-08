@@ -1,17 +1,5 @@
 import numpy
-import scipy.stats
-import patsy
-import re
-import pandas
-from .summary import summarize
-
-
-
-
-
-
-
-class difference_test(object):
+import scipy.statsclass difference_test(object):
 
     """
 
@@ -167,12 +155,10 @@ class difference_test(object):
 
 
         # Splitting into seperate arrays and getting descriptive statistics
-        group1, group2 = numpy.hsplit((self.DV * self.IV), 2)
+        group1, group2 = numpy.hsplit(self.IV, 2)
 
-        group1 = numpy.trim_zeros(group1)
-        group2 = numpy.trim_zeros(group2)
-
-
+        group1 = self.DV[group1 == 1]
+        group2 = self.DV[group2 == 1]
 
 
 
@@ -181,7 +167,7 @@ class difference_test(object):
         group2_info = summarize(group2, stats = ["N", "Mean", "SD", "SE", "Variance", "CI"], name = self.parameters["Categories"][1], ci_level = self.parameters["Conf. Level"], decimals = 64, return_type = "Dictionary")
 
 
-        combined = summarize(numpy.vstack((group1, group2)),
+        combined = summarize(self.DV,
                              stats = ["N", "Mean", "SD", "SE", "Variance", "CI"], name = "combined", ci_level = self.parameters["Conf. Level"], decimals = 64, return_type = "Dictionary")
 
 
@@ -400,8 +386,27 @@ class difference_test(object):
 
 
         else:
-            result_table = {self.parameters["Test name"] : [f"Difference ({self.parameters['Categories'][0]} - {self.parameters['Categories'][1]})",
-                                                            "Degrees of freedom =",
+
+            if self.parameters["Test name"] == "Independent samples t-test":
+                test_name = "Independent samples t-test with equal variances"
+            elif self.parameters["Test name"] == "Welch's t-test":
+                test_name = "Independent samples t-test with unequal variance"
+            else:
+                test_name = self.parameters["Test name"]
+
+
+
+            dof_type = "Degrees of freedom ="
+
+            if self.parameters["Test name"] == "Welch's t-test" :
+                if self.parameters["Welch DoF"] == "satterthwaite":
+                    dof_type = "Satterthwaite's Degrees of freedom ="
+                else:
+                    dof_type = "Welch's Degrees of freedom ="
+
+
+            result_table = {test_name : [f"Difference ({self.parameters['Categories'][0]} - {self.parameters['Categories'][1]})",
+                                                            dof_type,
                                                             f"{stat_name} =",
                                                             "Two sided test p-value =",
                                                             "Difference < 0 p-value =",
@@ -449,7 +454,7 @@ class difference_test(object):
 
                             # Cohen's Dav (within-subjects design)
                             d = (group1_info["Mean"] - group2_info["Mean"]) / ((group1_info["SD"] + group2_info["SD"]) / 2)
-                            result_table[self.parameters["Test name"]].append("Cohen's Dav")
+                            result_table[test_name].append("Cohen's Dav")
                             result_table["Results"].append(float(d))
 
                         else:
@@ -457,7 +462,7 @@ class difference_test(object):
                             d = (group1_info['Mean'] - group2_info["Mean"]) / numpy.sqrt((((group1_info["N"] - 1)*group1_info["Variance"] + (group2_info["N"] - 1)*group2_info["Variance"]) / (group1_info["N"] + group2_info["N"] - 2)))
 
 
-                            result_table[self.parameters["Test name"]].append("Cohen's Ds")
+                            result_table[test_name].append("Cohen's Ds")
                             result_table["Results"].append(float(d))
 
 
@@ -470,7 +475,7 @@ class difference_test(object):
                             d = (group1_info["Mean"] - group2_info["Mean"]) / ((group1_info["SD"] + group2_info["SD"]) / 2)
                             g = d * (1 - (3 / ((4*(group1_info["N"] + group2_info["N"])) - 9)))
 
-                            result_table[self.parameters["Test name"]].append("Hedge's Gav")
+                            result_table[test_name].append("Hedge's Gav")
                             result_table["Results"].append(float(g))
 
                         else:
@@ -478,7 +483,7 @@ class difference_test(object):
                             d = (group1_info['Mean'] - group2_info["Mean"]) / numpy.sqrt((((group1_info["N"] - 1)*group1_info["Variance"] + (group2_info["N"] - 1)*group2_info["Variance"]) / (group1_info["N"] + group2_info["N"] - 2)))
                             g = d * (1 - (3 / ((4*(group1_info["N"] + group2_info["N"])) - 9)))
 
-                            result_table[self.parameters["Test name"]].append("Hedge's G")
+                            result_table[test_name].append("Hedge's G")
                             result_table["Results"].append(float(g))
 
 
@@ -486,14 +491,14 @@ class difference_test(object):
                     if es == "Glass's delta1":
                         d1 = (group1_info["Mean"] - group2_info["Mean"]) / group1_info["SD"]
 
-                        result_table[self.parameters["Test name"]].append("Glass's delta1")
+                        result_table[test_name].append("Glass's delta1")
                         result_table["Results"].append(float(d1))
 
 
                     if es == "Glass's delta2":
                         d2 = (group1_info["Mean"] - group2_info["Mean"]) / group2_info["SD"]
 
-                        result_table[self.parameters["Test name"]].append("Glass's delta2")
+                        result_table[test_name].append("Glass's delta2")
                         result_table["Results"].append(float(d2))
 
 
@@ -501,7 +506,7 @@ class difference_test(object):
                     if es == "r":
                         r = stat / numpy.sqrt(stat**2 + dof)
 
-                        result_table[self.parameters["Test name"]].append("Point-Biserial r")
+                        result_table[test_name].append("Point-Biserial r")
                         result_table["Results"].append(float(r))
 
 
