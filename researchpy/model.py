@@ -43,3 +43,4 @@ class model():
         self.DV_name = self.DV.design_info.term_names[0]
 
         self._patsy_factor_information, self._mapping, self._rp_factor_information  = variable_information(self.IV.design_info.term_names, self.IV.design_info.column_names, data)
+        

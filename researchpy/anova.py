@@ -17,7 +17,6 @@ from .utility import *
 
 
 
-
 class anova(model):
 
     def __init__(self, formula_like, data = {}, sum_of_squares = 3):

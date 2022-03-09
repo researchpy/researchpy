@@ -159,14 +159,12 @@ def variable_information(term_names, column_names, data):
             my_factor_information[factor] = factor
             patsy_factor_information[factor] = factor
 
-
         else:
 
             factor_split = factor.split(":")
 
+
             if len(factor_split) == 1:
-
-
 
 
                 variable = (re.findall(factor_pattern, factor_split[0]))[0]
@@ -199,24 +197,12 @@ def variable_information(term_names, column_names, data):
                     # This is for non-categorical factors in the model
                     else:
                         interaction_terms.append(intfact)
-                        interaction_terms_levels.append(intfact)
+                        interaction_terms_levels.append([intfact])
 
 
                 # Creating all combinations of interaction terms
-                n_interaction_terms = len(interaction_terms)
-
-                interaction_terms_levels_comb = []
-
-
-                for ix in range(0, n_interaction_terms):
-                    if type(interaction_terms_levels[ix]) == list:
-                        interaction_terms_levels_comb.extend(interaction_terms_levels[ix])
-                    else:
-                        interaction_terms_levels_comb.append(interaction_terms_levels[ix])
-
-                interaction_terms_var_names_interactions = list(itertools.combinations(interaction_terms_levels_comb, n_interaction_terms))
+                interaction_terms_var_names_interactions = list(itertools.product(*interaction_terms_levels))
                 interaction_terms_var_names_interactions = [":".join(level) for level in interaction_terms_var_names_interactions]
-
 
 
                 my_factor_information[':'.join(interaction_terms)] = interaction_terms_var_names_interactions
@@ -242,6 +228,7 @@ def base_table(high_level_term_info, mapping_info, info_terms, reg_table):
     terms = (pandas.DataFrame.from_dict(high_level_term_info, orient= "index")).reset_index()
     terms.columns = ["term", "term_cleaned"]
     terms["intx"] = [1 if ":" in t else 0 for t in list(high_level_term_info.keys())]
+    terms["factor"] = [1 if "C(" in t else 0 for t in list(high_level_term_info.keys())]
 
 
     # Creating the second table #
@@ -250,15 +237,15 @@ def base_table(high_level_term_info, mapping_info, info_terms, reg_table):
 
     for key in info_terms.keys():
 
+
         count = 1
 
-        if key == 'Intercept':
+        if key == 'Intercept' or terms[terms.term_cleaned == key].factor.item() == 0:
             term_levels["term_cleaned"].append(key)
             term_levels["term_level_cleaned"].append(info_terms[key])
 
         else:
             for value in info_terms[key]:
-
 
                 term_levels["term_cleaned"].append(key)
 
@@ -287,20 +274,25 @@ def base_table(high_level_term_info, mapping_info, info_terms, reg_table):
                          current_terms, how = "left", on = ["term_cleaned", "term_level_cleaned"])
 
     table = pandas.merge(table,
-                         reg_table, how = "left", on = dv)
+                         pandas.DataFrame.from_dict(reg_table), how = "left", on = dv)
 
 
     # Cleaning up final table #
     table[dv] = table["term_level_cleaned"]
 
+
+
     for idx in table.index:
-        if table.iloc[idx]["systolic"] in list(info_terms.keys())[1:]:
-            table.iloc[idx, 5:] = ""
+        if pandas.isnull(table.iloc[idx, 6]) and table.iloc[idx][dv] not in list(info_terms.keys())[1:]:
+                table.iloc[idx, 6] = "(reference)"
+                table.iloc[idx, 7:] = ""
         else:
-            if pandas.isnull(table.iloc[idx, 5]):
-                table.iloc[idx, 5] = "(reference)"
+            if table.iloc[idx][dv] in list(info_terms.keys())[1:] and pandas.isnull(table.iloc[idx, 6]):
                 table.iloc[idx, 6:] = ""
 
-    table = table[(table.intx == 0) | ((table.intx == 1) & (table.iloc[:, 5] != "(reference)"))]
 
-    return table.iloc[:, 4:]
+
+
+    table = table[(table.intx == 0) | ((table.intx == 1) & (table.iloc[:, 6] != "(reference)"))]
+
+    return table.iloc[:, 5:]
