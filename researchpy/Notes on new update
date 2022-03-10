@@ -41,7 +41,8 @@ TO DO
       disease is the variable name and value is the category which is desired to be the reference
 
 
-[] ANOVA -regression_table()- output has something funky going on
+[DONE] ANOVA -regression_table()- output has something funky going on
+        > Fixed, had to update the variable_information function
 
 
 [] Add documentation about:
@@ -49,3 +50,4 @@ TO DO
   <DONE> anova
   <> model
   <> signrank test
+  <DONE> summarize

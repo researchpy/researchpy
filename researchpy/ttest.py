@@ -29,7 +29,6 @@ Updated on December 23, 2018
 """
 
 
-
 def ttest(group1, group2, group1_name= None, group2_name= None,
            equal_variances= True, paired= False,
            wilcox_parameters = {"zero_method" : "pratt", "correction" : False, "mode" : "auto"},
@@ -276,7 +275,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
         pr = z / numpy.sqrt(total_n)
 
         # Rank-Biserial r
-        pbr = t_val / total_sum_ranks
+        pbr = (positive_sum_ranks - negative_sum_ranks) / total_sum_ranks
 
 
 

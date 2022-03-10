@@ -227,10 +227,10 @@ class signrank(object):
             for es in effect_size:
 
                 if es == "pb":
-                    results["Rank-Biserial r"] = results["w"] / descriptives["sum ranks"][-1]
+                    results["Rank-Biserial r"] = (descriptives["sum ranks"][0] / descriptives["sum ranks"][-1]) - (descriptives["sum ranks"][1] / descriptives["sum ranks"][-1])
+
                 if es == "pearson":
                     results["Pearson r"] = results["z"] / numpy.sqrt(descriptives["obs"][-1])
-
 
 
 

@@ -1,5 +1,16 @@
 import numpy
-import scipy.statsclass difference_test(object):
+import scipy.stats
+import patsy
+import pandas
+
+from .summary import summarize
+from .model import model
+from .utility import *
+
+
+
+
+class difference_test(object):
 
     """
 
@@ -436,7 +447,7 @@ import scipy.statsclass difference_test(object):
                           " ",
                           sep = "\n"*2)
 
-                results["Rank-Biserial r"] = results["w"] / descriptives["sum ranks"][-1]
+                results["Rank-Biserial r"] = (descriptives["sum ranks"][0] / descriptives["sum ranks"][-1]) - (descriptives["sum ranks"][1] / descriptives["sum ranks"][-1])
                 results["Pearson r"] = results["z"] / numpy.sqrt(descriptives["obs"][-1])
 
 
