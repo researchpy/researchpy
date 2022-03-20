@@ -1,9 +1,5 @@
-import pandas
 import numpy
 import scipy.stats
-
-
-
 
 
 def count(d):
@@ -14,7 +10,6 @@ def count(d):
     """
 
     return numpy.count_nonzero(~numpy.isnan(d))
-
 
 
 def nanvar(d):
@@ -31,8 +26,7 @@ def nanvar(d):
         The variance of the non-missing data passed; calculated as numpy.nanvar(d, ddof = 1).
 
     """
-    return numpy.nanvar(d, ddof = 1)
-
+    return numpy.nanvar(d, ddof=1)
 
 
 def nanstd(d):
@@ -49,8 +43,7 @@ def nanstd(d):
         The standard deviation of the non-missing data passed; calculated as numpy.nanstd(d, ddof = 1).
 
     """
-    return numpy.nanstd(d, ddof = 1)
-
+    return numpy.nanstd(d, ddof=1)
 
 
 def nansem(d):
@@ -67,8 +60,7 @@ def nansem(d):
         The standard error of the non-missing data passed; calculated as scipy.stats.sem(d, nan_policy= 'omit').
 
     """
-    return scipy.stats.sem(d, nan_policy= 'omit')
-
+    return scipy.stats.sem(d, nan_policy='omit')
 
 
 def value_range(d):
@@ -88,10 +80,7 @@ def value_range(d):
     min_val = numpy.nanmin(d)
     max_val = numpy.nanmax(d)
 
-
-
     return float(max_val - min_val)
-
 
 
 def kurtosis(d):
@@ -108,8 +97,7 @@ def kurtosis(d):
         The kurtosis of the distribution of the data passed using Pearson's definition; calculated as scipy.stats.kurtosis(d, fisher = False, nan_policy = 'omit').'
 
     """
-    return float(scipy.stats.kurtosis(d, fisher = False, nan_policy = 'omit'))
-
+    return float(scipy.stats.kurtosis(d, fisher=False, nan_policy='omit'))
 
 
 def skew(d):
@@ -126,11 +114,10 @@ def skew(d):
         The skew of the distribution of the data passed; calculated as scipy.stats.skew(d, nan_policy = 'omit').
 
     """
-    return float(scipy.stats.skew(d, nan_policy = 'omit'))
+    return float(scipy.stats.skew(d, nan_policy='omit'))
 
 
-
-def confidence_interval(d, alpha = 0.95, n = None, loc = None, scale = None, decimals = 4):
+def confidence_interval(d, alpha=0.95, n=None, loc=None, scale=None, decimals=4):
     """
 
     Parameters
@@ -160,15 +147,17 @@ def confidence_interval(d, alpha = 0.95, n = None, loc = None, scale = None, dec
 
     """
 
-    if n == None: n = count(d) - 1
-    if loc == None: central = numpy.nanmean(d)
-    if scale == None: scaler = nansem(d)
+    if n == None:
+        n = count(d) - 1
+    if loc == None:
+        central = numpy.nanmean(d)
+    if scale == None:
+        scaler = nansem(d)
 
     ci_intervals = list(scipy.stats.t.interval(alpha,
                                                n,
-                                               loc = central,
-                                               scale = scaler))
-
+                                               loc=central,
+                                               scale=scaler))
 
     idx = 0
     for value in ci_intervals:
@@ -178,10 +167,7 @@ def confidence_interval(d, alpha = 0.95, n = None, loc = None, scale = None, dec
     return ci_intervals
 
 
-
-
-
-def l_ci(d, alpha = 0.95, n = None, loc = None, scale = None, decimals = 4):
+def l_ci(d, alpha=0.95, n=None, loc=None, scale=None, decimals=4):
     """
 
     Parameters
@@ -211,19 +197,21 @@ def l_ci(d, alpha = 0.95, n = None, loc = None, scale = None, decimals = 4):
 
     """
 
-    if n == None: n = count(d) - 1
-    if loc == None: central = numpy.nanmean(d)
-    if scale == None: scaler = nansem(d)
+    if n == None:
+        n = count(d) - 1
+    if loc == None:
+        central = numpy.nanmean(d)
+    if scale == None:
+        scaler = nansem(d)
 
     l_ci, _ = scipy.stats.t.interval(alpha,
                                      n - 1,
-                                     loc = central,
-                                     scale= scaler)
+                                     loc=central,
+                                     scale=scaler)
     return round(l_ci, decimals)
 
 
-
-def u_ci(d, alpha = 0.95, n = None, loc = None, scale = None, decimals = 4):
+def u_ci(d, alpha=0.95, n=None, loc=None, scale=None, decimals=4):
     """
 
     Parameters
@@ -253,12 +241,15 @@ def u_ci(d, alpha = 0.95, n = None, loc = None, scale = None, decimals = 4):
 
     """
 
-    if n == None: n = count(d) - 1
-    if loc == None: central = numpy.nanmean(d)
-    if scale == None: scaler = nansem(d)
+    if n == None:
+        n = count(d) - 1
+    if loc == None:
+        central = numpy.nanmean(d)
+    if scale == None:
+        scaler = nansem(d)
 
     _, u_ci = scipy.stats.t.interval(alpha,
                                      n - 1,
-                                     loc= central,
-                                     scale= scaler)
+                                     loc=central,
+                                     scale=scaler)
     return round(u_ci, decimals)

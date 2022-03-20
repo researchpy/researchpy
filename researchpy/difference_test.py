@@ -124,7 +124,7 @@ class difference_test(object):
         ----------
         return_type : string, optional
             What data structure to return, available options are "Dataframe" or "Dictionary". The default is "Dataframe".
-        effect_size : Boolean, optional
+        effect_size : string or list, optional
             What effect size measures should be calculated and returned apart of the results table; the default is None.
 
             Options are: "Cohen's D", "Hedge's G", "Glass's delta1", "Glass's delta2", "r", or "all" - "all" will calculated all the effect sizes.
