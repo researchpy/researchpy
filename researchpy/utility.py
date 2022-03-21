@@ -211,7 +211,7 @@ def variable_information(term_names, column_names, data):
 def base_table(high_level_term_info, mapping_info, info_terms, reg_table):
 
     dv = list(reg_table)[0]
-    
+
     # Creating the first table #
     terms = (pandas.DataFrame.from_dict(
         high_level_term_info, orient="index")).reset_index()
