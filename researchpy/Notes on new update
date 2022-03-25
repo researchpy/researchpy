@@ -9,6 +9,10 @@
 
 (5) Added signrank test
 
+(6) Added -ols- which conducts linear regression using ordinary least Squares
+
+(7) Added -predict- which conducts various estimations using model information from -anova- or -ols- objects; support for other classes are coming.
+
 
 TO DO
 =====
@@ -51,4 +55,5 @@ TO DO
   <> model
   <DONE> signrank test
   <DONE> summarize
-  <> predict
+  <STARTED> predict
+  <> ols

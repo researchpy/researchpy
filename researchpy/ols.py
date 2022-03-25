@@ -8,6 +8,7 @@ import pandas
 from .summary import summarize
 from .model import model
 from .utility import *
+from .predict import predict
 
 
 class ols(model):
@@ -198,7 +199,7 @@ class ols(model):
             t), self.model_data["degrees_of_freedom_residual"]) * 2) for t in t_stastics])
 
         ## Creating variable table information
-        self.regression_description_info = {
+        regression_description_info = {
 
             self._DV_design_info.term_names[0]: ["Coef.", "Std. Err.", "t", "p-value", "95% Conf. Interval"],
 
@@ -221,8 +222,8 @@ class ols(model):
             regression_info[f"{int(conf_level * 100)}% Conf. Interval"].append(
                 [round(l_ci, decimals), round(u_ci, decimals)])
 
-        self.regression_info = base_table(self._patsy_factor_information, self._mapping,
-                                          self._rp_factor_information, pandas.DataFrame.from_dict(regression_info))
+        regression_info = base_table(self._patsy_factor_information, self._mapping,
+                                     self._rp_factor_information, pandas.DataFrame.from_dict(regression_info))
 
         if pretty_format == True:
 
@@ -330,3 +331,41 @@ class ols(model):
 
             print(
                 "Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
+
+    def predict(self, estimate=None):
+        """
+
+        Parameters
+        ----------
+        estimate : string
+            A string value to indicate which estimate is desired. Available options are:
+
+                estimate in ["y", "xb"] : linear prediction
+                estimate in ["residuals", "res", "r"] : residuals
+                estimate in ["standardized_residuals", "standardized_r", "rstand"] : standardized residuals
+                estimate in ["studentized_residuals", "student_r", "rstud"] : studentized (jackknifed) residuals
+                estimate in ["leverage", "lev"] : The leverage of each observation
+
+
+        Returns
+        -------
+        Array containing the desired estimate.
+
+        """
+        if estimate not in ["y", "xb", "residuals", "res", "r", "standardized_residuals", "standardized_r", "rstand", "studentized_residuals", "student_r", "rstud", "leverage", "lev"]:
+            return print("\n", "ERROR: estimate option provided is not supported. Please use help(predict) for supported options.")
+
+        if estimate in ["y", "xb"]:
+            return predict_y(self)
+
+        elif estimate in ["residuals", "res", "r"]:
+            return residuals(self)
+
+        elif estimate in ["standardized_residuals", "standardized_r", "rstand"]:
+            return standardized_residuals(self)
+
+        elif estimate in ["studentized_residuals", "student_r", "rstud"]:
+            return studentized_residuals(self)
+
+        elif estimate in ["leverage", "lev"]:
+            return leverage(self)

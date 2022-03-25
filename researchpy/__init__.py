@@ -3,7 +3,7 @@
 
 @author: Corey Bryant
 
-Last udpated: 01/18/2022
+Last udpated: 03/25/2022
 
 """
 
@@ -15,3 +15,4 @@ from .difference_test import *
 from .basic_stats import *
 from .utility import *
 from .signrank import *
+from .predict import predict
