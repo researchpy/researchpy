@@ -49,6 +49,7 @@ class ols(model):
                 R-sqaured ('r squared')
                 Adjusted R-squared ('r squared adj.')
                 Eta squared ('Eta squared')
+                Epsilon squared ('Epsilon squared')
                 Omega squared ('Omega squared')
 
     """
@@ -140,13 +141,17 @@ class ols(model):
         self.model_data["f_p_value_model"] = scipy.stats.f.sf(
             self.model_data["f_value_model"], self.model_data["degrees_of_freedom_model"], self.model_data["degrees_of_freedom_residual"])
 
-        ### R^2 Values
+        ### Effect Size Measures
         # Model
         self.model_data["r squared"] = (
             self.model_data["sum_of_square_model"] / self.model_data["sum_of_square_total"])
         self.model_data["r squared adj."] = 1 - (self.model_data["degrees_of_freedom_total"] / self.model_data["degrees_of_freedom_residual"]) * (
             self.model_data["sum_of_square_residual"] / self.model_data["sum_of_square_total"])
         self.model_data["Eta squared"] = self.model_data["r squared"]
+        
+        self.model_data["Epsilon squared"] = (self.model_data["degrees_of_freedom_model"] * (
+            self.model_data["msr"] - self.model_data["mse"])) / (self.model_data["sum_of_square_total"])
+        
         self.model_data["Omega squared"] = (self.model_data["degrees_of_freedom_model"] * (
             self.model_data["msr"] - self.model_data["mse"])) / (self.model_data["sum_of_square_total"] + self.model_data["mse"])
 

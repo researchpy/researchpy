@@ -6,7 +6,6 @@ import patsy
 import pandas
 
 from .summary import summarize
-from .model import model
 from .utility import *
 
 

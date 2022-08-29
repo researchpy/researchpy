@@ -1,3 +1,6 @@
+py -m pip install -e C:\Users\Corey\Documents\GitHub\researchpy
+
+
 
 (1) Added support to summarize for Pandas Groupby objects
 
@@ -27,12 +30,12 @@ TO DO
               > Added the calculations to the documentation
       <DONE> finish -regression_table- function
 
-  <! DONE !> Validate Effect Size Measures
+  <DONE> Validate Effect Size Measures
     <DONE> difference_test
     <DONE> ttest
     <DONE> ANOVA
-        (DONE) R, R^2, Eta^2, Partial Eta^2, and Omega^2 are perfect matches
-        () Partial Omega^2 doesn't match Stata but the math checks out
+        (DONE) R, R^2, Eta^2, Partial Eta^2, Epsilon^2, and Omega^2 are perfect matches
+          (DONE) Partial Epsilon^2 and Omega^2 doesn't match Stata -> Stata 17 uses the F-statistic rather than the formulas from Olejnik and Algina (2000)
 
 [DONE] Add the new helper functions to Researchpy
 

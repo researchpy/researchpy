@@ -85,7 +85,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
         ## Determining which version of the Welch's t-test to use ##
         if welch_dof == "satterthwaite":
 
-            test = "Welch-Satterthwaite t-test"
+            test = "Satterthwaite t-test"
 
             ## Satterthwaite (1946) Degrees of Freedom ##
             dof = ((group1.var()/group1.count()) + (group2.var()/group2.count()))**2 / ((group1.var()/group1.count())**2 / (group1.count()-1) + (group2.var()/group2.count())**2 / (group2.count()-1))
@@ -107,10 +107,10 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
         rt_p_val = 1 - scipy.stats.t.cdf(t_val, dof)
 
 
-        if t_val > 0:
-            temp = rt_p_val
-            rt_p_val = lt_p_val
-            lt_p_val = temp
+        #if t_val > 0:
+        #    temp = rt_p_val
+        #    rt_p_val = lt_p_val
+        #    lt_p_val = temp
 
 
 
@@ -428,7 +428,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
         table2.iloc[7,0] = f"Hedge's g = "
         table2.iloc[7,1] = round(g, 4)
 
-        table2.iloc[8,0] = f"Glass's delta = "
+        table2.iloc[8,0] = f"Glass's delta1 = "
         table2.iloc[8,1] = round(delta, 4)
 
         table2.iloc[9,0] = f"Point-Biserial r = "

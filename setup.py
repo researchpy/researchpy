@@ -17,5 +17,5 @@ setup(name="researchpy",
       license="MIT",
       packages=['researchpy'],
       install_requires=['scipy', 'numpy', 'pandas',
-                        'statsmodels', 'patsy', 'itertools']
+                        'statsmodels', 'patsy']
       )

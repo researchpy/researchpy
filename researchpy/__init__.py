@@ -14,5 +14,9 @@ from .crosstab import *
 from .difference_test import *
 from .basic_stats import *
 from .utility import *
+from .model import *
 from .signrank import *
 from .predict import predict
+from .anova import *
+from .ols import *
+
