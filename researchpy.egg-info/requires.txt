@@ -1,5 +1,0 @@
-scipy
-numpy
-pandas
-statsmodels
-patsy
