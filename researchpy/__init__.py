@@ -3,7 +3,7 @@
 
 @author: Corey Bryant
 
-Last udpated: 05/1/2021
+Last udpated: 03/25/2022
 
 """
 
@@ -12,3 +12,11 @@ from .summary import *
 from .correlation import *
 from .crosstab import *
 from .difference_test import *
+from .basic_stats import *
+from .utility import *
+from .model import *
+from .signrank import *
+from .predict import predict
+from .anova import *
+from .ols import *
+

@@ -12,7 +12,27 @@ import numpy
 import scipy.stats
 
 
-def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances= True, paired= False, correction= None):
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Dec 20 12:36:53 2021
+
+@author: Corey
+"""
+
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Jul 22 13:18:39 2018
+Updated on December 23, 2018
+
+@author: Corey Bryant
+
+"""
+
+
+def ttest(group1, group2, group1_name= None, group2_name= None,
+           equal_variances= True, paired= False,
+           wilcox_parameters = {"zero_method" : "pratt", "correction" : False, "mode" : "auto"},
+           welch_dof = "satterthwaite"):
 
     # Joining groups for table and calculating group mean difference
     groups = group1.append(group2, ignore_index= True)
@@ -26,9 +46,12 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         t_val, p_val = scipy.stats.ttest_ind(group1, group2, nan_policy= 'omit')
         dof = group1.count() + group2.count() - 2
 
-        # Confidence interval
+        # Less than or greater than 0 p_vals
         lt_p_val = scipy.stats.t.cdf(t_val, dof)
         rt_p_val = 1 - scipy.stats.t.cdf(t_val, dof)
+
+
+
 
         # Effect sizes
         # Cohen's d
@@ -47,22 +70,49 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         delta = (group1.mean() - group2.mean()) / group1.std()
 
         # Pearson r
-        r = numpy.sqrt(abs(t_val)**2 / ((abs(t_val)**2) + dof))
+        #r = numpy.sqrt(t_val**2 / ((t_val**2) + dof))
 
         # Point-Biserial r -- should I add?
-        # r = t_val / numpy.sqrt(t_val**2 + dof)
+        r = t_val / numpy.sqrt(t_val**2 + dof)
 
 
     elif equal_variances == False and paired == False:
-        test = "Welch's t-test"
-        t_val, p_val = scipy.stats.ttest_ind(group1, group2, equal_var = False,
-                                             nan_policy= 'omit')
-        ## Welch-Satterthwaite Degrees of Freedom ##
-        dof = -2 + (((group1.var()/group1.count()) + (group2.var()/group2.count()))**2 / ((group1.var()/group1.count())**2 / (group1.count()+1) + (group2.var()/group2.count())**2 / (group2.count()+1)))
 
-        # Confidence interval
+        ## This p-value is the Welch-Satterthwaite p-value ##
+        t_val, p_val = scipy.stats.ttest_ind(group1, group2, equal_var = False,
+                                                 nan_policy= 'omit')
+
+        ## Determining which version of the Welch's t-test to use ##
+        if welch_dof == "satterthwaite":
+
+            test = "Satterthwaite t-test"
+
+            ## Satterthwaite (1946) Degrees of Freedom ##
+            dof = ((group1.var()/group1.count()) + (group2.var()/group2.count()))**2 / ((group1.var()/group1.count())**2 / (group1.count()-1) + (group2.var()/group2.count())**2 / (group2.count()-1))
+
+
+
+        elif welch_dof == "welch":
+            test = "Welch's t-test"
+
+            ## Welch (1947) Degrees of Freedom ##
+            dof = -2 + (((group1.var()/group1.count()) + (group2.var()/group2.count()))**2 / ((group1.var()/group1.count())**2 / (group1.count()+1) + (group2.var()/group2.count())**2 / (group2.count()+1)))
+
+            p_val = 2 * min((1 - scipy.stats.t.cdf(t_val, dof)), scipy.stats.t.cdf(t_val, dof))
+
+
+
+        # Less than or greater than 0 p_vals
         lt_p_val = scipy.stats.t.cdf(t_val, dof)
         rt_p_val = 1 - scipy.stats.t.cdf(t_val, dof)
+
+
+        #if t_val > 0:
+        #    temp = rt_p_val
+        #    rt_p_val = lt_p_val
+        #    lt_p_val = temp
+
+
 
         # Effect size
         # Cohen's d
@@ -75,15 +125,11 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         # Glass's delta
         delta = (group1.mean() - group2.mean()) / group1.std()
 
-        # Common language effect size
-        # Calculated z = |group1_mean - group2_mean| / square root (group1_variance + group2_variance)
-        cles = 0 - abs(group1.mean() - group2.mean()) / numpy.sqrt(group1.var() + group2.var())
-
         # Pearson r
-        r = numpy.sqrt(abs(t_val)**2 / ((abs(t_val)**2) + dof))
+        #r = numpy.sqrt(t_val**2 / ((t_val**2) + dof))
 
         # Point-Biserial r -- should I add?
-        # r = t_val / numpy.sqrt(t_val**2 + dof)
+        r = t_val / numpy.sqrt(t_val**2 + dof)
 
 
 
@@ -99,9 +145,15 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         t_val, p_val = scipy.stats.ttest_rel(group1, group2)
         dof = group1.count() - 1
 
-        # Confidence interval
+        # Less than or greater than 0 p_vals
         lt_p_val = scipy.stats.t.cdf(t_val, dof)
         rt_p_val = 1 - scipy.stats.t.cdf(t_val, dof)
+
+
+        if t_val > 0:
+            temp = rt_p_val
+            rt_p_val = lt_p_val
+            lt_p_val = temp
 
         # Effect sizes
         # Cohen's d
@@ -118,50 +170,112 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         delta = (group1.mean() - group2.mean()) / group1.std()
 
         # Pearson r
-        r = numpy.sqrt(abs(t_val)**2 / ((abs(t_val)**2) + dof))
+        #r = numpy.sqrt(t_val**2 / ((t_val**2) + dof))
 
         # Point-Biserial r -- should I add?
-        # r = t_val / numpy.sqrt(t_val**2 + dof)
+        r = t_val / numpy.sqrt(t_val**2 + dof)
 
 
 
 
     elif equal_variances == False and paired == True:
+
         test = "Wilcoxon signed-rank test"
 
-        if correction == None:
-            correction = False
-        else:
-            correction = correction
+        difference = group1 - group2
 
-        group1 = group1[(group1.notnull()) & (group2.notnull())]
-        group2 = group2[(group1.notnull()) & (group2.notnull())]
+        parameters = {"zero_method" : "pratt", "correction" : False, "mode" : "auto"}
+        parameters.update(wilcox_parameters)
 
-        groups_diff = group1 - group2
-        groups_diff_non0 = groups_diff[groups_diff != 0]
 
-        ## t_bar Calculated as t_bar = n(n+1) / 4
-        ## where n is number of non-zero observations
-        t_bar = groups_diff_non0.count() * (groups_diff_non0.count() + 1) / 4
 
-        ## SE_t_bar calculated as
-        ## se_t_bar = square_root(n(n + 1)(2n + 1)/24),
-        ## where n is number of non-zero observations
-        se_t_bar = numpy.sqrt(groups_diff_non0.count() * (groups_diff_non0.count() + 1) * ((2 * groups_diff_non0.count()) + 1) / 24 )
+        if parameters["zero_method"] == 'pratt':
+
+            difference_abs = numpy.abs(difference)
+
+            total_n = difference.shape[0]
+            positive_n = difference[difference > 0].shape[0]
+            negative_n = difference[difference < 0].shape[0]
+            zero_n = difference[difference == 0].shape[0]
+
+        elif parameters["zero_method"] == 'wilcox':
+
+            difference = difference[difference != 0]
+            difference_abs = numpy.abs(difference)
+
+            # Calculating Signed Information
+            total_n = difference.shape[0]
+            positive_n = difference[difference > 0].shape[0]
+            negative_n = difference[difference < 0].shape[0]
+            zero_n = difference[difference == 0].shape[0]
+
+        elif parameters["zero_method"] == 'zsplit':
+            # Includes zero-differences in the ranking process and split the zero tank between positive and negative ones
+
+            print("This method is not currently supported, please enter either 'wilcox' or 'pratt'.")
+
+
+
+        # Ranking the absolute difference |d|
+        ranked = scipy.stats.rankdata(difference_abs)
+
+        sign = numpy.where(difference < 0, -1, 1)
+
+        ranked_sign = (sign * ranked)
+
+        # Descriptive Information #
+        total_sum_ranks = ranked.sum()
+        positive_sum_ranks = ranked[difference > 0].sum()
+        negative_sum_ranks = ranked[difference < 0].sum()
+        zero_sum_ranks = ranked[difference == 0].sum()
+
+
+        ## Dropping the Rank of the Zeros
+        sign2 = numpy.where(difference == 0, 0, sign)
+        ranked2 = sign2 * ranked
+        ranked2 = numpy.where(difference == 0, 0, ranked2)
+
+
+        # Expected T
+        T = (sign * ranked_sign).sum()
+
+        # Observered T
+        T_obs = (sign2 * ranked2).sum()
+
+
+        # Expected T+ and T-
+        exp_positive = T_obs / 2
+        exp_negative = T_obs / 2
+        exp_zero = T - T_obs
+
+        var_adj_T = (ranked2 * ranked2).sum()
+
+
+        e_T_pos = total_n  * (total_n  + 1) / 4
+        var_adj_T_pos = (1/4) * var_adj_T
+
+        var_unadj_T_pos = ((total_n * (total_n + 1)) * (2 * total_n + 1)) /24
+        var_zero_adj_T_pos = -1 * ((zero_n * (zero_n + 1)) * (2 * zero_n + 1)) /24
+
+        var_ties_adj = var_adj_T_pos - var_unadj_T_pos - var_zero_adj_T_pos
+
+
+        z = (positive_sum_ranks - exp_positive) / numpy.sqrt(var_adj_T_pos)
+
 
 
         t_val, p_val = scipy.stats.wilcoxon(group1, group2,
-                                            correction= f"{correction}")
+                                            zero_method = parameters["zero_method"],
+                                            correction = parameters["correction"],
+                                            mode = parameters["mode"])
 
-        dof = group1.count() - 1
-
-        ## Calculating z score; using formula from Rosenthal, 1991
-        ## z = t_val - t_bar / se_t_bar
-        z = (t_val - t_bar) / se_t_bar
 
         ## Effect size
-        ##  r = z / square_root(N)
-        r = z / numpy.sqrt(group1.count() + group2.count())
+        ##  Pearson r = z / square_root(N)
+        pr = z / numpy.sqrt(total_n)
+
+        # Rank-Biserial r
+        pbr = (positive_sum_ranks - negative_sum_ranks) / total_sum_ranks
 
 
 
@@ -244,7 +358,21 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
                                           scale= scipy.stats.sem(groups, nan_policy= 'omit'))
 
     if equal_variances == False and paired == True:
-        table2 = pandas.DataFrame(numpy.zeros(shape= (6,2)),
+
+        # Descriptive Information Regarding Ranked-Signs #
+
+        # table = pandas.DataFrame(numpy.zeros(shape= (5,4)),
+        #                 columns = ['sign', 'obs', 'sum ranks', 'expected'])
+        descriptives = {"sign" : ["positive", "negative", "zero", "all"],
+                        "obs" : [positive_n, negative_n, zero_n, total_n],
+                        "sum ranks" : [positive_sum_ranks, negative_sum_ranks, zero_sum_ranks, total_sum_ranks],
+                        "expected" : [exp_positive, exp_negative, exp_zero, T]}
+
+        table1 = pandas.DataFrame.from_dict(descriptives)
+
+
+        # Testing Results #
+        table2 = pandas.DataFrame(numpy.zeros(shape= (7,2)),
                          columns = ['Wilcoxon signed-rank test', 'results'])
 
         table2.iloc[0,0] = f"Mean for {group1_name} = "
@@ -259,13 +387,16 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         table2.iloc[3,0] = f"Z value = "
         table2.iloc[3,1] = round(z, 4)
 
-        table2.iloc[4,0] = f"Two sided p value = "
+        table2.iloc[4,0] = f"p value = "
         table2.iloc[4,1] = round(p_val, 4)
 
-        table2.iloc[5,0] = f"r = "
-        table2.iloc[5,1] = round(r, 4)
+        table2.iloc[5,0] = f"Rank-Biserial r = "
+        table2.iloc[5,1] = round(pbr, 4)
 
-        return table2
+        table2.iloc[6,0] = f"Pearson r = "
+        table2.iloc[6,1] = round(pr, 4)
+
+        return table1, table2
 
     else:
         table2 = pandas.DataFrame(numpy.zeros(shape= (10,2)),
@@ -297,10 +428,10 @@ def ttest(group1, group2, group1_name= None, group2_name= None, equal_variances=
         table2.iloc[7,0] = f"Hedge's g = "
         table2.iloc[7,1] = round(g, 4)
 
-        table2.iloc[8,0] = f"Glass's delta = "
+        table2.iloc[8,0] = f"Glass's delta1 = "
         table2.iloc[8,1] = round(delta, 4)
 
-        table2.iloc[9,0] = f"Pearson's r = "
+        table2.iloc[9,0] = f"Point-Biserial r = "
         table2.iloc[9,1] = round(r, 4)
 
         return table, table2

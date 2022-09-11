@@ -13,6 +13,7 @@ To do:
 import pandas
 import numpy
 import scipy.stats
+from .basic_stats import *
 
 ## summary_cont() provides descriptive statistics for continuous data
 def summary_cont(group1, conf = 0.95, decimals = 4):
@@ -441,16 +442,33 @@ def codebook(data):
 
 
 
-
-def summarize(data = {}, name = None, stats = [], ci_level = 0.95, return_type = "Dataframe"):
-
+def summarize(data = {}, name = None, stats = [], ci_level = 0.95, decimals = 4, return_type = "Dataframe"):
     """
 
-    Available options are ["N", "Mean", "Median", "Variance", "SD", "SE", "CI",
-                           'Min', 'Max', 'Range', "Kurtosis", "Skew"].
+    Parameters
+    ----------
+    data : array_like
+        Array like data object.
+    name : String, optional
+        The name of the variable returned if the name of the column is not desired. The default is None, i.e. name of variable.
+    stats : List, optional
+        The statistics to be calculated; the default is ["N", "Mean", "Median", "Variance", "SD", "SE", "CI"].
 
-    The default returned is ["N", "Mean", "Median", "Variance", "SD", "SE", "CI"] at a 95% Conf. Interval.
+        Supported options are: ["N", "Mean", "Median", "Variance", "SD", "SE", "CI", 'Min', 'Max', 'Range', "Kurtosis", "Skew"]
+    ci_level : Float, optional
+        The confidence level to be calculated. The default is 0.95.
+    decimals : Integer, optional
+        The number of decimal places to be rounded to. The default is 4.
+    return_type : String, optional
+        The data structure to be returne; the default is "Dataframe".
 
+        Available options are:
+            "Dataframe" which will return a Pandas Dataframe.
+            "Dictionary" which will return a dictionary.
+
+    Returns
+    -------
+    Pandas Dataframe or dictionary depending on what is specified.
 
     """
     # Parameter check
@@ -462,66 +480,314 @@ def summarize(data = {}, name = None, stats = [], ci_level = 0.95, return_type =
 
 
 
+
+
+
     if len(stats) == 0:
         stats = ["N", "Mean", "Median", "Variance", "SD", "SE", "CI"]
+        stats_to_conduct = [count, numpy.nanmean, numpy.nanmean, nanvar, nanstd, nansem, confidence_interval]
+
 
     results = {}
 
-    if name != None:
+    if name is not None:
         results["Name"] = name
 
-    if name == None:
+    if name is None:
         try:
             results["Name"] = data.name
         except:
             ...
 
-    if "N" in stats:
-        results["N"] = float(numpy.count_nonzero(~numpy.isnan(data)))
+    flag = "nongroupby"
 
-    if "Mean" in stats:
-        results["Mean"] = float(numpy.nanmean(data))
+    # Calculating the requested information #
+    if type(data) == pandas.core.groupby.generic.DataFrameGroupBy or type(data) == pandas.core.groupby.generic.SeriesGroupBy:
 
-    if "Median" in stats:
-        results["Median"] = float(numpy.nanmedian(data))
+        flag = "groupby"
+        stats_to_conduct = []
 
-    if "Variance" in stats:
-        results["Variance"] = float(numpy.nanvar(data, ddof = 1))
+        idx = -1
+        for test in stats:
+            idx += 1
 
-    if "SD" in stats:
-        results["SD"] = float(numpy.nanstd(data, ddof = 1))
+            if "N" == test: stats_to_conduct.append(count)
+            if "Mean" == test: stats_to_conduct.append(numpy.nanmean)
+            if "Median" == test: stats_to_conduct.append(numpy.nanmedian)
+            if "Variance" == test: stats_to_conduct.append(nanvar)
+            if "SD" == test: stats_to_conduct.append(nanstd)
+            if "SE" == test: stats_to_conduct.append(nansem)
+            if "CI" == test:
+                #stats_to_conduct.append(lambda x: [l_ci(x, alpha = ci_level, decimals = decimals), u_ci(x, alpha = ci_level, decimals = decimals)])
+                stats_to_conduct.append(confidence_interval)
+                stats[idx] = f"{int(ci_level * 100)}% Conf. Interval"
+            if "Min" == test: stats_to_conduct.append(numpy.nanmin)
+            if "Max" == test: stats_to_conduct.append(numpy.nanmax)
+            if "Range" == test: stats_to_conduct.append(value_range)
+            if "Kurtosis" == test: stats_to_conduct.append(kurtosis)
+            if "Skew" == test: stats_to_conduct.append(skew)
 
-    if "SE" in stats:
-        results["SE"] = float(scipy.stats.sem(data, nan_policy= 'omit'))
 
-    if "CI" in stats:
-        ci_lower, ci_upper = scipy.stats.t.interval(ci_level,
-                                                    int(numpy.isfinite(data).sum()) - 1,
-                                                    loc = numpy.nanmean(data),
-                                                    scale = scipy.stats.sem(data, nan_policy= 'omit'))
+        results = round(data.agg(stats_to_conduct), decimals)
 
-        results[f"{int(ci_level * 100)}% Conf."] = float(ci_lower)
-        results["Interval"] = float(ci_upper)
+        if type(data) == pandas.core.groupby.generic.DataFrameGroupBy:
+            ## Need to clean up the lmbda_0 name
+            col = [(x[0], f"{int(ci_level * 100)}% Conf. Interval") if x[1] == '<lambda_0>' else x for x in results.columns.tolist()]
+            results.columns = pandas.MultiIndex.from_tuples(col)
 
-    if "Min" in stats:
-        results["Min"] = float(numpy.nanmin(data))
+            if return_type == "Dictionary":
+                results = results.to_dict()
+        else:
+            col = [f"{int(ci_level * 100)}% Conf. Interval" if x == '<lambda_0>' else x for x in results.columns.tolist()]
+            results.columns = col
 
-    if "Max" in stats:
-        results["Max"] = float(numpy.nanmax(data))
 
-    if "Range" in stats:
-        results["Range"] = float(numpy.nanmax(data) - numpy.nanmin(data))
 
-    if "Kurtosis" in stats:
-        # This computes kurtosis using Pearson's definition
-        results["Kurtosis"] = float(scipy.stats.kurtosis(data, fisher = False, nan_policy = 'omit'))
 
-    if "Skew" in stats:
-        results["Skew"] = float(scipy.stats.skew(data, nan_policy = 'omit'))
+    elif type(data) == pandas.core.frame.DataFrame:
+
+        results["Name"] = data.columns.tolist()
+
+        idx = -1
+        for test in stats:
+            idx += 1
+
+            if "N" == test:
+                results[test] = round(data.apply(count), decimals)
+
+            if "Mean" == test:
+                results[test] = round(data.apply(numpy.nanmean), decimals)
+
+            if "Median" == test:
+                results[test] = round(data.apply(numpy.nanmedian), decimals)
+
+            if "Variance" == test:
+                results[test] = round(data.apply(nanvar), decimals)
+
+            if "SD" == test:
+                results[test] = round(data.apply(nanstd), decimals)
+
+            if "SE" == test:
+                results[test] = round(data.apply(nansem), decimals)
+
+            if "CI" == test:
+                results[f"{int(ci_level * 100)}% Conf. Interval"] = data.apply(lambda x: confidence_interval(x, alpha = ci_level, decimals = decimals))
+                stats[idx] = f"{int(ci_level * 100)}% Conf. Interval"
+
+            if "Min" == test:
+                results[test] = round(data.apply(numpy.nanmin), decimals)
+
+            if "Max" == test:
+                results[test] = round(data.apply(numpy.nanmax), decimals)
+
+            if "Range" == test:
+                results[test] = round(data.apply(value_range), decimals)
+
+            if "Kurtosis" == test:
+                results[test] = round(data.apply(kurtosis), decimals)
+
+            if "Skew" == test:
+                results[test] = round(data.apply(skew), decimals)
+
+
+
+
+
+    else:
+
+        if "N" in stats:
+            try:
+                results["N"] = count(data)
+            except:
+                results["N"] = data.apply(lambda x: numpy.count_nonzero(~x.apply(numpy.isnan)))
+
+        if "Mean" in stats:
+            try:
+                results["Mean"] = round(numpy.nanmean(data), decimals)
+            except:
+                try:
+                    results["Mean"] = round(data.apply(numpy.nanmean), decimals)
+                except:
+                    # Used on patsy.design_info.DesignMatrix objects
+                    results["Mean"] = float(numpy.nanmean(data))
+
+        if "Median" in stats:
+            try:
+                results["Median"] = float(numpy.nanmedian(data))
+            except:
+                results["Median"] = float(data.apply(numpy.nanmedian))
+
+        if "Variance" in stats:
+            try:
+                results["Variance"] = round(nanvar(data), decimals)
+            except:
+                try:
+                    results["Variance"] = data.apply(lambda x: round(nanvar(x), decimals))
+                except:
+                    # Used on patsy.design_info.DesignMatrix objects
+                    results["Variance"] = float(nanvar(data))
+
+        if "SD" in stats:
+            try:
+                results["SD"] = round(nanstd(data), decimals)
+            except:
+                try:
+                    results["SD"] = data.apply(lambda x: round(nanstd(x), decimals))
+                except:
+                    # Used on patsy.design_info.DesignMatrix objects
+                    results["SD"] = float(nanstd(data))
+
+        if "SE" in stats:
+            try:
+                results["SE"] = round(nansem(data), decimals)
+            except:
+                try:
+                    results["SE"] = data.apply(lambda x: nansem(x))
+                except:
+                    # Used on patsy.design_info.DesignMatrix objects
+                    results["SE"] = float(nansem(data)[0])
+
+        if "CI" in stats:
+            try:
+                ci_lower, ci_upper = scipy.stats.t.interval(ci_level,
+                                                            count(data) - 1,
+                                                            loc = numpy.nanmean(data),
+                                                            scale = nansem(data))
+
+                results[f"{int(ci_level * 100)}% Conf. Interval"] = [round(ci_lower, decimals), round(ci_upper, decimals)]
+            except:
+                try:
+                    # Used on patsy.design_info.DesignMatrix objects
+                    ci_lower, ci_upper = scipy.stats.t.interval(ci_level,
+                                                                count(data) - 1,
+                                                                loc = numpy.nanmean(data),
+                                                                scale = nansem(data))
+
+                    results[f"{int(ci_level * 100)}% Conf. Interval"] = [round(float(ci_lower[0]), decimals), round(float(ci_upper[0]), decimals)]
+                except:
+                    try:
+                        ci_intervals = data.apply(lambda x: list(scipy.stats.t.interval(ci_level,
+                                                                                        count(x) - 1,
+                                                                                        loc = numpy.nanmean(x),
+                                                                                        scale = nansem(x))))
+
+                        ci_intervals = ci_intervals.to_dict()
+                        for lst in ci_intervals.values():
+                            idx = 0
+                            for value in lst:
+                                lst[idx] = round(value, decimals)
+                                idx += 1
+
+
+                        results[f"{int(ci_level * 100)}% Conf. Interval"] = ci_intervals
+
+                    except:
+                        ci_intervals = data.apply(lambda x: confidence_interval(x, alpha = ci_level, decimals = decimals))
+                        print(ci_intervals)
+
+                        results[f"{int(ci_level * 100)}% Conf. Interval"] = ci_intervals
+
+        if "Min" in stats:
+            try:
+                results["Min"] = round(numpy.nanmin(data), decimals)
+            except:
+                try:
+                    results["Min"] = round(data.apply(numpy.nanmin), decimals)
+                except:
+                    # Used on patsy.design_info.DesignMatrix objects
+                    results["Min"] = float(numpy.nanmin(data))
+
+        if "Max" in stats:
+            try:
+                results["Max"] = round(numpy.nanmax(data), decimals)
+            except:
+                try:
+                    results["Max"] = round(data.apply(numpy.nanmax), decimals)
+                except:
+                    # Used on patsy.design_info.DesignMatrix objects
+                    results["Max"] = float(numpy.nanmax(data))
+
+        if "Range" in stats:
+            try:
+                results["Range"] = round(numpy.nanmax(data) - numpy.nanmin(data), decimals)
+            except:
+                try:
+                    results["Range"] = round(data.apply(lambda x: numpy.nanmax(x) - numpy.nanmin(x)), decimals)
+                except:
+                    # Used on patsy.design_info.DesignMatrix objects
+                    results["Range"] = float(numpy.nanmax(data) - numpy.nanmin(data))
+
+        if "Kurtosis" in stats:
+            # This computes kurtosis using Pearson's definition
+            try:
+                results["Kurtosis"] = round(kurtosis(data), decimals)
+            except:
+                try:
+                    results["Kurtosis"] = round(data.apply(lambda x: kurtosis(x)), decimals)
+
+                except:
+                    # Used on patsy.design_info.DesignMatrix objects
+                    results["Kurtosis"] = float(kurtosis(data))
+
+        if "Skew" in stats:
+            try:
+                results["Skew"] = round(skew(data), decimals)
+            except:
+                try:
+                    results["Skew"] = round(data.apply(lambda x: skew(x)), decimals)
+                except:
+                    # Used on patsy.design_info.DesignMatrix objects
+                    results["Skew"] = float(skew(data))
+
+
 
 
 
     if return_type == "Dataframe":
-        return pandas.DataFrame.from_dict(results, orient='index').T
+        try:
+            results = pandas.DataFrame.from_dict(results, orient='index').T
+            return results
+        except:
+            try:
+                results = results.reset_index()
+                results.rename(columns = {"count" : "N",
+                                      "nanmean" : "Mean",
+                                      "nanmedian" : "Median",
+                                      "nanvar" : "Variance",
+                                      "nanstd" : "SD",
+                                      "nansem" : "SE",
+                                      "confidence_interval" : f"{int(ci_level * 100)}% Conf. Interval",
+                                      "nanmin" : "Min",
+                                      "nanmax" : "Max",
+                                      "ptp" : "Range",
+                                      "kurtosis" : "Kurtosis",
+                                      "skew" : "Skew"}, inplace = True)
+            except:
+                results = pandas.DataFrame.from_dict(results)
+
+
+
+            return results
+
     elif return_type == "Dictionary":
-        return results
+
+        if flag == "groupby":
+
+            results.rename(columns = {"count" : "N",
+                                      "nanmean" : "Mean",
+                                      "nanmedian" : "Median",
+                                      "nanvar" : "Variance",
+                                      "nanstd" : "SD",
+                                      "nansem" : "SE",
+                                      "confidence_interval" : f"{int(ci_level * 100)}% Conf. Interval",
+                                      "nanmin" : "Min",
+                                      "nanmax" : "Max",
+                                      "ptp" : "Range",
+                                      "kurtosis" : "Kurtosis",
+                                      "skew" : "Skew"}, inplace = True)
+
+
+            return dict(results)
+
+        else:
+            return results
