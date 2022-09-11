@@ -250,6 +250,7 @@ class ols(model):
                     "F value": [round(self.model_data["f_value_model"], decimals), ''],
                     "p-value": [round(self.model_data["f_p_value_model"], decimals), ''],
                     "Eta squared": [round(self.model_data["Eta squared"], decimals), ''],
+                    "Epsilon squared" : [round(self.model_data["Epsilon squared"], decimals), ''],
                     "Omega squared": [round(self.model_data["Omega squared"], decimals), '']
 
                     }
@@ -263,6 +264,7 @@ class ols(model):
                     "F value": ['', ''],
                     "p-value": ['', ''],
                     "Eta squared": ['', ''],
+                    "Epsilon squared" : ['', ''],
                     "Omega squared": ['', '']
 
                     }
@@ -276,6 +278,7 @@ class ols(model):
                     "F value": top["F value"] + bottom["F value"],
                     "p-value": top["p-value"] + bottom["p-value"],
                     "Eta squared": top["Eta squared"] + bottom["Eta squared"],
+                    "Epsilon squared" : top["Epsilon squared"] + bottom["Epsilon squared"],
                     "Omega squared": top["Omega squared"] + bottom["Omega squared"]
 
                     }
@@ -337,40 +340,8 @@ class ols(model):
             print(
                 "Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
 
+
     def predict(self, estimate=None):
-        """
+        
+        return predict(self, estimate= estimate)
 
-        Parameters
-        ----------
-        estimate : string
-            A string value to indicate which estimate is desired. Available options are:
-
-                estimate in ["y", "xb"] : linear prediction
-                estimate in ["residuals", "res", "r"] : residuals
-                estimate in ["standardized_residuals", "standardized_r", "rstand"] : standardized residuals
-                estimate in ["studentized_residuals", "student_r", "rstud"] : studentized (jackknifed) residuals
-                estimate in ["leverage", "lev"] : The leverage of each observation
-
-
-        Returns
-        -------
-        Array containing the desired estimate.
-
-        """
-        if estimate not in ["y", "xb", "residuals", "res", "r", "standardized_residuals", "standardized_r", "rstand", "studentized_residuals", "student_r", "rstud", "leverage", "lev"]:
-            return print("\n", "ERROR: estimate option provided is not supported. Please use help(predict) for supported options.")
-
-        if estimate in ["y", "xb"]:
-            return predict_y(self)
-
-        elif estimate in ["residuals", "res", "r"]:
-            return residuals(self)
-
-        elif estimate in ["standardized_residuals", "standardized_r", "rstand"]:
-            return standardized_residuals(self)
-
-        elif estimate in ["studentized_residuals", "student_r", "rstud"]:
-            return studentized_residuals(self)
-
-        elif estimate in ["leverage", "lev"]:
-            return leverage(self)

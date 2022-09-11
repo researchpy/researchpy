@@ -24,7 +24,10 @@ def predict_y(mdl_data):
         Returns an array containing the linear prediction.
 
     """
-    return mdl_data.IV @ mdl_data.model_data["betas"]
+    
+    y_e = mdl_data.IV @ mdl_data.model_data["betas"]
+    
+    return y_e
 
 
 def residuals(mdl_data):
@@ -43,7 +46,9 @@ def residuals(mdl_data):
 
     """
     predicted_y = mdl_data.IV @ mdl_data.model_data["betas"]
-    return mdl_data.DV - predicted_y
+    resids = mdl_data.DV - predicted_y
+    
+    return resids
 
 
 def standardized_residuals(mdl_data):
@@ -101,7 +106,9 @@ def studentized_residuals(mdl_data):
 
         d.append(float(t_i))
 
-    return numpy.array(d).reshape(n, 1)
+    d = numpy.array(d).reshape(n, 1) 
+
+    return d
 
 
 def leverage(mdl_data):
@@ -120,10 +127,12 @@ def leverage(mdl_data):
 
     """
 
-    return numpy.diag(mdl_data.model_data['H']).reshape(mdl_data.nobs, 1)
+    lev = numpy.diag(mdl_data.model_data['H']).reshape(mdl_data.nobs, 1)
+
+    return lev
 
 
-def predict(mdl_data={}, estimate=None):
+def predict(mdl_data={}, estimate=None, decimals=4):
     """
 
 
@@ -151,16 +160,21 @@ def predict(mdl_data={}, estimate=None):
         return print("\n", "ERROR: estimate option provided is not supported. Please use help(predict) for supported options.")
 
     if estimate in ["y", "xb"]:
-        return predict_y(mdl_data)
+        est = predict_y(mdl_data)
+        return est.round(decimals)
 
     elif estimate in ["residuals", "res", "r"]:
-        return residuals(mdl_data)
+        est = residuals(mdl_data)
+        return est.round(decimals)
 
     elif estimate in ["standardized_residuals", "standardized_r", "rstand"]:
-        return standardized_residuals(mdl_data)
+        est = standardized_residuals(mdl_data)
+        return est.round(decimals)
 
     elif estimate in ["studentized_residuals", "student_r", "rstud"]:
-        return studentized_residuals(mdl_data)
-
+        est = studentized_residuals(mdl_data)
+        return est.round(decimals)
+    
     elif estimate in ["leverage", "lev"]:
-        return leverage(mdl_data)
+        est = leverage(mdl_data)
+        return est.round(decimals)

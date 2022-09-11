@@ -214,11 +214,14 @@ class anova(ols):
                 # Getting design matrix set up
                 design_info2 = self._IV_design_info.subset(terms_in_model)
                 x = numpy.asarray(patsy.build_design_matrices(
-                    [design_info2], data))[0]
+                    [design_info2], data[~data.isna().any(axis= 1)]))[0]
 
                 design_info3 = self._IV_design_info.subset(compare_model)
                 x_c = numpy.asarray(
-                    patsy.build_design_matrices([design_info3], data))[0]
+                    patsy.build_design_matrices([design_info3], data[~data.isna().any(axis= 1)]))[0]
+
+
+
 
                 # Hat matrix
                 h = x @ numpy.linalg.inv(x.T @ x) @ x.T
@@ -333,84 +336,98 @@ class anova(ols):
                 " ~ " + " + ".join(the_terms_3[1:])
             y, x_full = patsy.dmatrices(full_model, data, eval_env=1)
             
-            
+                    
             terms_design_info = []
             for term in x_full.design_info.term_names[1:]:
                 terms_design_info.append(x_full.design_info.subset(term))
                 
                 
-            for factor in patsy.build_design_matrices(terms_design_info, data):
+            
+          
+            """
+            ##for factor in patsy.build_design_matrices(terms_design_info, data):
+            for factor in the_terms_3:
                 
-                x = numpy.asarray(factor)
+                terms_in_model = the_terms_3[1:]
+                if factor.strip().upper() == 'INTERCEPT': 
+                    continue
+                else:
+                    terms_in_model.remove(factor)
+                    
+                    design_info2 = x_full.design_info.subset(terms_in_model)
+                    
+                    #x = numpy.asarray(factor)
+                    x = numpy.asarray(patsy.build_design_matrices(
+                    [design_info2], data))[0]
                 
-                # Hat matrix
-                h = x @ numpy.linalg.inv(x.T @ x) @ x.T
+                    # Hat matrix
+                    h = x @ numpy.linalg.inv(x.T @ x) @ x.T
 
-                # Predicted y values
-                predicted_y = h @ self.DV
+                    # Predicted y values
+                    predicted_y = h @ self.DV
 
-                # Calculation of residuals (error)
-                residuals = self.DV - predicted_y
+                    # Calculation of residuals (error)
+                    residuals = self.DV - predicted_y
 
-                ###  Error sum of squares (SSE)
-                sum_of_square_residual = residuals.T @ residuals
+                    ###  Error sum of squares (SSE)
+                    sum_of_square_residual = residuals.T @ residuals
 
-                # Calculating the Factor Effect
-                sum_of_square_factor = sum_of_square_residual - \
-                    self.model_data["sum_of_square_residual"]
+                    # Calculating the Factor Effect
+                    sum_of_square_factor = sum_of_square_residual - \
+                        self.model_data["sum_of_square_residual"]
 
-                ### Degrees of freedom - Factor
-                degrees_of_freedom_factor = numpy.linalg.matrix_rank(x) - 1
+                    ### Degrees of freedom - Factor
+                    degrees_of_freedom_factor = numpy.linalg.matrix_rank(x) - 1
                 
 
-                ### Mean Square - Factor (MSR-F)
-                msr_f = sum_of_square_factor * (1 / degrees_of_freedom_factor)
+                    ### Mean Square - Factor (MSR-F)
+                    msr_f = sum_of_square_factor * (1 / degrees_of_freedom_factor)
                 
 
 
-                ### F-values
-                # Model
-                f_value_model = msr_f / self.model_data["mse"]
-                f_p_value_model = scipy.stats.f.sf(
+                    ### F-values
+                    # Model
+                    f_value_model = msr_f / self.model_data["mse"]
+                    f_p_value_model = scipy.stats.f.sf(
                     f_value_model, degrees_of_freedom_factor, self.model_data["degrees_of_freedom_residual"])
 
                     
-                ### Partial Effect Size Measures
-                eta_squared_partial = sum_of_square_factor / \
-                    (sum_of_square_factor
-                     + self.model_data["sum_of_square_residual"])
+                    ### Partial Effect Size Measures
+                    eta_squared_partial = sum_of_square_factor / \
+                        (sum_of_square_factor
+                         + self.model_data["sum_of_square_residual"])
                     
-                epsilon_squared_partial = (degrees_of_freedom_factor * (msr_f - self.model_data["mse"])) / \
-                    (sum_of_square_factor  + self.model_data["sum_of_square_total"])
+                    epsilon_squared_partial = (degrees_of_freedom_factor * (msr_f - self.model_data["mse"])) / \
+                        (sum_of_square_factor  + self.model_data["sum_of_square_total"])
                     
-                omega_squared_partial = (degrees_of_freedom_factor * (msr_f - self.model_data["mse"])) / \
-                    ((degrees_of_freedom_factor * msr_f) + (self.nobs - degrees_of_freedom_factor) * self.model_data["mse"])
+                    omega_squared_partial = (degrees_of_freedom_factor * (msr_f - self.model_data["mse"])) / \
+                        ((degrees_of_freedom_factor * msr_f) + (self.nobs - degrees_of_freedom_factor) * self.model_data["mse"])
                 
 
                 
-                # Updating items
-                factor_effects["Source"].append(factor.design_info.term_names[1])
-                factor_effects["Sum of Squares"].append(float(sum_of_square_factor))
-                factor_effects["Degrees of Freedom"].append(float(degrees_of_freedom_factor))
-                factor_effects["Mean Squares"].append(float(msr_f))
-                factor_effects["F value"].append(float(f_value_model))
-                factor_effects["p-value"].append(float(f_p_value_model))
+                    # Updating items
+                    factor_effects["Source"].append(factor.design_info.term_names[1])
+                    factor_effects["Sum of Squares"].append(float(sum_of_square_factor))
+                    factor_effects["Degrees of Freedom"].append(float(degrees_of_freedom_factor))
+                    factor_effects["Mean Squares"].append(float(msr_f))
+                    factor_effects["F value"].append(float(f_value_model))
+                    factor_effects["p-value"].append(float(f_p_value_model))
 
-                factor_effects["Eta squared"].append(float(eta_squared_partial))
-                factor_effects["Epsilon squared"].append(float(epsilon_squared_partial))
-                factor_effects["Omega squared"].append(float(omega_squared_partial))
-                #factor_effects["r squared"].append("")
-                #factor_effects["r squared adj."].append("")
+                    factor_effects["Eta squared"].append(float(eta_squared_partial))
+                    factor_effects["Epsilon squared"].append(float(epsilon_squared_partial))
+                    factor_effects["Omega squared"].append(float(omega_squared_partial))
+                    #factor_effects["r squared"].append("")
+                    #factor_effects["r squared adj."].append("")
 
-                self.factor_effects = factor_effects
-            
-            
-            
-            
-            
-            
+                    self.factor_effects = factor_effects
             
             """
+            
+            
+            
+            
+            
+            
             for current_term in the_terms_3:
 
                 terms_in_model = []
@@ -451,7 +468,7 @@ class anova(ols):
                 design_info2 = x_full.design_info.subset(terms_in_model)
                 
                 x = numpy.asarray(patsy.build_design_matrices(
-                    [design_info2, x_full.design_info], data))[0]
+                    [design_info2], data))[0]
                 
 
                 # Hat matrix
@@ -519,7 +536,7 @@ class anova(ols):
                 #factor_effects["r squared adj."].append("")
 
                 self.factor_effects = factor_effects
-                """
+                
 
     def results(self, return_type="Dataframe", decimals=4, pretty_format=True):
 
