@@ -5,18 +5,19 @@ Created on Thu Jul 15 08:07:51 2021
 @author: Corey
 """
 
-# Used
+# %% Importing libraries
 import numpy
 import scipy.stats
 import patsy
 import pandas
 
-from .summary import summarize
-from .ols import *
+from researchpy.summary import summarize
+from researchpy.ols import *
 #from .model import model
-from .utility import *
+from researchpy.utility import *
 
 
+# %% Creating anova class which
 class anova(ols):
     """
 
