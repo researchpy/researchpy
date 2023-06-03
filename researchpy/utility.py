@@ -280,3 +280,8 @@ def base_table(high_level_term_info, mapping_info, info_terms, reg_table):
                                        & (table.iloc[:, 6] != "(reference)"))]
 
     return table.iloc[:, 5:]
+
+def append(to: pandas.DataFrame, df_from: pandas.DataFrame, **kwargs):
+    method_name = 'append' if hasatrr(to, 'append') else '_append'
+    append_method = getatrr(to, method_name)
+    append_method(df_from, **kwargs)
