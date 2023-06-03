@@ -11,6 +11,7 @@ import pandas
 import numpy
 import scipy.stats
 
+from utility import append
 
 # -*- coding: utf-8 -*-
 """
@@ -35,7 +36,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
            welch_dof = "satterthwaite"):
 
     # Joining groups for table and calculating group mean difference
-    groups = group1.append(group2, ignore_index= True)
+    groups = append(group1, group2, ignore_index= True)
     groups_diff = numpy.mean(group1) - numpy.mean(group2)
 
 
@@ -137,7 +138,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
         group1 = group1[(group1.notnull()) & (group2.notnull())]
         group2 = group2[(group1.notnull()) & (group2.notnull())]
 
-        groups = group1.append(group2, ignore_index= True)
+        groups = append(group1, group2, ignore_index= True)
         groups_diff = numpy.mean(group1) - numpy.mean(group2)
         diff = group1 - group2
 
