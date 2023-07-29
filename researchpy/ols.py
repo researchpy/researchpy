@@ -51,7 +51,7 @@ class ols(model):
                 Eta squared ('Eta squared')
                 Epsilon squared ('Epsilon squared')
                 Omega squared ('Omega squared')
-
+=][]
     """
 
     def __init__(self, formula_like, data={}):
