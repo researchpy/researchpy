@@ -16,6 +16,11 @@ import scipy.stats
 from .basic_stats import *
 
 ## summary_cont() provides descriptive statistics for continuous data
+import pandas
+import numpy
+import scipy
+import scipy.stats
+
 def summary_cont(group1, conf = 0.95, decimals = 4):
 
 
@@ -57,7 +62,7 @@ def summary_cont(group1, conf = 0.95, decimals = 4):
 
         count = 0
 
-        for ix, df_col in group1.iteritems():
+        for ix, df_col in group1.items():
 
             count = count + 1
 
@@ -211,18 +216,19 @@ def summary_cat(group1, ascending= False):
         else:
             table.sort_values(by= 'Count', ascending= True, inplace= True)
 
+        index_name = group1.name
         table['Variable'] = ""
-        table.iloc[0,2] = group1.name
+        table.iloc[0,2] = index_name
 
         table.reset_index(inplace= True)
-        table.rename(columns= {'index': 'Outcome'}, inplace= True)
+        table = table.rename(columns= {index_name: 'Outcome'})
         table = table[['Variable', 'Outcome', 'Count', 'Percent']]
 
     elif type(group1) == pandas.core.frame.DataFrame:
 
         count = 0
 
-        for ix, df_col in group1.iteritems():
+        for ix, df_col in group1.items():
 
             count = count + 1
 
@@ -242,8 +248,9 @@ def summary_cat(group1, ascending= False):
                 table['Variable'] = ""
                 table.iloc[0,2] = ix
 
+                index_name = table.index.name
                 table.reset_index(inplace= True)
-                table.rename(columns= {'index': 'Outcome'}, inplace= True)
+                table = table.rename(columns= {index_name: 'Outcome'})
                 table = table[['Variable', 'Outcome', 'Count', 'Percent']]
 
             else:
@@ -262,8 +269,9 @@ def summary_cat(group1, ascending= False):
                 table_c['Variable'] = ""
                 table_c.iloc[0,2] = ix
 
+                index_name_c = table_c.index.name
                 table_c.reset_index(inplace= True)
-                table_c.rename(columns= {'index': 'Outcome'}, inplace= True)
+                table_c = table_c.rename(columns= {index_name_c: 'Outcome'})
                 table_c = table_c[['Variable', 'Outcome', 'Count', 'Percent']]
 
                 table = pandas.concat([table, table_c], ignore_index= "true")

@@ -156,14 +156,14 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
             lt_p_val = temp
 
         # Effect sizes
-        # Cohen's d
-        # Using formula provided by Rosenthal (1991)
-        # d = t / square root(n)
-        #d = t_val / numpy.sqrt(diff.count())
-        d = (group1.mean() - group2.mean()) / ((group1.std() + group2.std()) / 2)
+
+        # Cohen's d (1988)
+        d = (group1.mean() - group2.mean()) / diff.std()
+
+        # Cohen's d_av
+        d_av = (group1.mean() - group2.mean()) / ((group1.std() + group2.std()) / 2)
 
         # Hedge's G
-        #Calculated as g = d * (1 - 3 / 4(group1_n + group2_n) - 9)
         g = d * (1 - (3 / ((4*(group1.count() + group2.count())) - 9)))
 
         # Glass's delta
@@ -172,7 +172,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
         # Pearson r
         #r = numpy.sqrt(t_val**2 / ((t_val**2) + dof))
 
-        # Point-Biserial r -- should I add?
+        # Point-Biserial r
         r = t_val / numpy.sqrt(t_val**2 + dof)
 
 
@@ -397,6 +397,45 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
         table2.iloc[6,1] = round(pr, 4)
 
         return table1, table2
+
+    elif test == "Paired samples t-test":
+        table2 = pandas.DataFrame(numpy.zeros(shape= (11,2)),
+                         columns = ['Test', 'results'])
+
+        table2.rename(columns= {'Test': f'{test}'}, inplace= True)
+
+        table2.iloc[0,0] = f"Difference ({group1_name} - {group2_name}) = "
+        table2.iloc[0,1] = round(groups_diff, 4)
+
+        table2.iloc[1,0] = "Degrees of freedom = "
+        table2.iloc[1,1] = round(dof, 4)
+
+        table2.iloc[2,0] = "t = "
+        table2.iloc[2,1] = round(t_val, 4)
+
+        table2.iloc[3,0] = "Two side test p value = "
+        table2.iloc[3,1] = round(p_val, 4)
+
+        table2.iloc[4,0] = f"Difference < 0 p value = "
+        table2.iloc[4,1] = round(lt_p_val, 4)
+
+        table2.iloc[5,0] = f"Difference > 0 p value = "
+        table2.iloc[5,1] = round(rt_p_val, 4)
+
+        table2.iloc[6,0] = f"Cohen's d_z = "
+        table2.iloc[6,1] = round(d_z, 4)
+
+        table2.iloc[7,0] = f"Cohen's d_av = "
+        table2.iloc[7,1] = round(d_av, 4)
+
+        table2.iloc[8,0] = f"Hedge's g = "
+        table2.iloc[8,1] = round(g, 4)
+
+        table2.iloc[9,0] = f"Glass's delta1 = "
+        table2.iloc[9,1] = round(delta, 4)
+
+        table2.iloc[10,0] = f"Point-Biserial r = "
+        table2.iloc[10,1] = round(r, 4)
 
     else:
         table2 = pandas.DataFrame(numpy.zeros(shape= (10,2)),
