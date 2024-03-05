@@ -398,7 +398,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
 
         return table1, table2
 
-    elif equal_variances == True and paired == True:
+    elif test == "Paired samples t-test":
         table2 = pandas.DataFrame(numpy.zeros(shape= (11,2)),
                          columns = ['Test', 'results'])
 

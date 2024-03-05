@@ -7,6 +7,7 @@ Last udpated: 03/25/2022
 
 """
 
+from .version import __version__
 from .ttest import ttest
 from .summary import *
 from .correlation import *
