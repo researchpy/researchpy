@@ -286,7 +286,6 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
                          columns = ['Variable', 'N', 'Mean', 'SD', 'SE',
                                     '95% Conf.', 'Interval'])
 
-
     # Setting up the first column (Variable names)
     if group1_name != None:
         group1_name = group1_name
@@ -306,46 +305,37 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
     else:
         table.iloc[2,0] = 'combined'
 
-
     # Setting up the second column (Number of observations)
     table.iloc[0,1] = group1.count()
     table.iloc[1,1] = group2.count()
-
     if test == "Paired samples t-test":
         table.iloc[2,1] = diff.count()
     else:
         table.iloc[2,1] = groups.count()
 
-
     # Setting up the third column (Mean)
     table.iloc[0,2] = numpy.mean(group1)
     table.iloc[1,2] = numpy.mean(group2)
-
     if test == "Paired samples t-test":
         table.iloc[2,2] = numpy.mean(diff)
     else:
         table.iloc[2,2] = numpy.mean(groups)
 
-
     # Setting up the fourth column (Standard Deviation (SD))
     table.iloc[0,3] = numpy.std(group1, ddof= 1)
     table.iloc[1,3] = numpy.std(group2, ddof= 1)
-
     if test == "Paired samples t-test":
         table.iloc[2,3] = numpy.std(diff, ddof= 1)
     else:
         table.iloc[2,3] = numpy.std(groups, ddof= 1)
 
-
     # Setting up the fith column (Standard Error (SE))
     table.iloc[0,4] = scipy.stats.sem(group1, nan_policy= 'omit')
     table.iloc[1,4] = scipy.stats.sem(group2, nan_policy= 'omit')
-
     if test == "Paired samples t-test":
         table.iloc[2,4] = scipy.stats.sem(diff, nan_policy= 'omit')
     else:
         table.iloc[2,4] = scipy.stats.sem(groups, nan_policy= 'omit')
-
 
     # Setting up the sixth and seventh column (95% CI)
     table.iloc[0,5], table.iloc[0,6] = scipy.stats.t.interval(0.95,
@@ -356,7 +346,6 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
                                           group2.count() - 1,
                                           loc= numpy.mean(group2),
                                           scale= scipy.stats.sem(group2, nan_policy= 'omit'))
-
     if test == "Paired samples t-test":
         table.iloc[2,5], table.iloc[2,6] = scipy.stats.t.interval(0.95,
                                           diff.count() - 1,
@@ -367,7 +356,6 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
                                           groups.count() - 1,
                                           loc= numpy.mean(groups),
                                           scale= scipy.stats.sem(groups, nan_policy= 'omit'))
-
 
     if equal_variances == False and paired == True:
 
@@ -410,7 +398,7 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
 
         return table1, table2
 
-    elif equal_variances == True and paired == True:
+    elif test == "Paired samples t-test":
         table2 = pandas.DataFrame(numpy.zeros(shape= (11,2)),
                          columns = ['Test', 'results'])
 
@@ -448,8 +436,6 @@ def ttest(group1, group2, group1_name= None, group2_name= None,
 
         table2.iloc[10,0] = f"Point-Biserial r = "
         table2.iloc[10,1] = round(r, 4)
-
-        return table, table2
 
     else:
         table2 = pandas.DataFrame(numpy.zeros(shape= (10,2)),
