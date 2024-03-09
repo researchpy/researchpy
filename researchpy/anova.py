@@ -64,11 +64,12 @@ class anova(ols):
 
     """
 
+
     def __init__(self, formula_like, data={}, sum_of_squares=3):
         super().__init__(formula_like, data)
+        self.__name__ = "researchpy.anova"
 
         ###########
-
         factor_effects = {"Source": [],
                           "Sum of Squares": [],
                           "Degrees of Freedom": [],
@@ -675,7 +676,10 @@ class anova(ols):
 
     def regression_table(self, return_type="Dataframe", decimals=4, pretty_format=True, conf_level=0.95):
 
-        return super().results(return_type=return_type, decimals=decimals, pretty_format=pretty_format, conf_level=conf_level)[2]
+        return super().results(return_type=return_type,
+                               decimals=decimals,
+                               pretty_format=pretty_format,
+                               conf_level=conf_level)[2]
 
     def predict(self, estimate=None):
         return super().predict(estimate=estimate)

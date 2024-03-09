@@ -20,4 +20,5 @@ from .signrank import *
 from .predict import *
 from .anova import *
 from .ols import *
+from .regression import *
 

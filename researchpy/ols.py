@@ -54,8 +54,10 @@ class ols(model):
 =][]
     """
 
+
     def __init__(self, formula_like, data={}):
         super().__init__(formula_like, data, matrix_type=1)
+        self.__name__ = "researchpy.ols"
 
         self.model_data = {}
 

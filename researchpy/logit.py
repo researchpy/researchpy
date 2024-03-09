@@ -17,6 +17,7 @@ from .predict import predict
 
 class logistic(general_model):
 
+    __name__ = "researchpy.logit"
     def __init__(self, formula_like, data={}, family="binomial", link="logit", tol=1e-7, max_iter=300, display=True):
         super().__init__(formula_like, data, matrix_type=1, family="binomial", link="logit", tol=1e-7, max_iter=300, display=True)
 

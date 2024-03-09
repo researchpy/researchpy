@@ -1,6 +1,6 @@
 import pandas
 import scipy.stats
-import numpy
+import numpy as np
 import re
 import itertools
 
@@ -160,7 +160,7 @@ def variable_information(term_names, column_names, data):
             if len(factor_split) == 1:
 
                 variable = (re.findall(factor_pattern, factor_split[0]))[0]
-                variable_levels = list(numpy.unique(
+                variable_levels = list(np.unique(
                     data[variable][~data[variable].isnull()]))
                 variable_levels = [str(level) for level in variable_levels]
 
@@ -178,7 +178,7 @@ def variable_information(term_names, column_names, data):
                     if intfact.startswith("C("):
 
                         variable = (re.findall(factor_pattern, intfact))[0]
-                        variable_levels = list(numpy.unique(data[variable]))
+                        variable_levels = list(np.unique(data[variable]))
                         variable_levels = [str(level)
                                            for level in variable_levels]
 
@@ -271,10 +271,10 @@ def base_table(high_level_term_info, mapping_info, info_terms, reg_table):
     for idx in table.index:
         if pandas.isnull(table.iloc[idx, 6]) and table.iloc[idx][dv] not in list(info_terms.keys())[1:]:
             table.iloc[idx, 6] = "(reference)"
-            table.iloc[idx, 7:] = ""
+            table.iloc[idx, 7:] = np.nan
         else:
             if table.iloc[idx][dv] in list(info_terms.keys())[1:] and pandas.isnull(table.iloc[idx, 6]):
-                table.iloc[idx, 6:] = ""
+                table.iloc[idx, 6:] = np.nan
 
     table = table[(table.intx == 0) | ((table.intx == 1)
                                        & (table.iloc[:, 6] != "(reference)"))]
