@@ -202,7 +202,9 @@ class lm(model):
 
     def results(self, return_type="Dataframe", pretty_format=True):
 
-        return super().table_regression_results(return_type=return_type, pretty_format=pretty_format)[2]
+        #descriptives, model_results, regression_table = super().table_regression_results(return_type=return_type, pretty_format=pretty_format)
+
+        return super().table_regression_results(return_type=return_type, pretty_format=pretty_format)
 
 
     def predict(self, estimate=None):

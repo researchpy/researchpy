@@ -3,7 +3,7 @@
 import numpy as np
 import scipy.stats
 import patsy
-import pandas
+import pandas as pd
 
 from .summary import summarize
 from .utility import *
@@ -72,6 +72,77 @@ class model():
                                                                                                           self.IV.design_info.column_names,
                                                                                                           data)
 
+
+    def _regression_base_table(self):
+
+        dv = list(self.regression_info)[0]
+
+        # Creating the first table #
+        terms = (pd.DataFrame.from_dict(self._patsy_factor_information, orient="index")).reset_index()
+        terms.columns = ["term", "term_cleaned"]
+        terms["intx"] = [1 if ":" in t else 0 for t in list(self._patsy_factor_information.keys())]
+        terms["factor"] = [1 if "C(" in t else 0 for t in list(self._patsy_factor_information.keys())]
+
+        # Creating the second table #
+        term_levels = {"term_cleaned"      : [],
+                       "term_level_cleaned": []}
+
+        for key in self._rp_factor_information.keys():
+
+            count = 1
+
+            if key == 'Intercept' or terms[terms.term_cleaned == key].factor.item() == 0:
+                term_levels["term_cleaned"].append(key)
+                term_levels["term_level_cleaned"].append(self._rp_factor_information[key])
+
+            else:
+                for value in self._rp_factor_information[key]:
+
+                    term_levels["term_cleaned"].append(key)
+
+                    if count == 1:
+
+                        term_levels["term_cleaned"].append(key)
+                        term_levels["term_level_cleaned"].append(key)
+                        term_levels["term_level_cleaned"].append(value)
+
+                        count += 1
+                    else:
+                        term_levels["term_level_cleaned"].append(value)
+
+        # Creating the third table #
+        current_terms = (pd.DataFrame.from_dict(self._mapping, orient="index")).reset_index()
+        current_terms.columns = [dv, "term_level_cleaned"]
+        current_terms["term_cleaned"] = [patsy_term_cleaner(key) for key in self._mapping.keys()]
+
+        # Joining the tables together #
+        table = pd.merge(terms, pd.DataFrame.from_dict(term_levels),
+                         how="left", on="term_cleaned")
+
+        table = pd.merge(table, current_terms,
+                         how="left", on=["term_cleaned", "term_level_cleaned"])
+
+        table = pd.merge(table, pd.DataFrame.from_dict(self.regression_info),
+                         how="left", on=dv)
+
+        # Cleaning up final table #
+        table[dv] = table["term_level_cleaned"]
+
+        for idx in table.index:
+            if pd.isnull(table.iloc[idx, 6]) and table.iloc[idx][dv] not in list(self._rp_factor_information.keys())[1:]:
+                table.iloc[idx, 6] = "(reference)"
+                table.iloc[idx, 7:] = np.nan
+
+            else:
+                if table.iloc[idx][dv] in list(self._rp_factor_information.keys())[1:] and pd.isnull(table.iloc[idx, 6]):
+                    table.iloc[idx, 6:] = np.nan
+
+        table = table[(table.intx == 0) |
+                      ((table.intx == 1) & (table.iloc[:, 6] != "(reference)"))]
+
+        return table.iloc[:, 5:]
+
+
     def table_regression_results(self, return_type="Dataframe", decimals={
                                      "Coef.": 2,
                                      "Std. Err.": 4,
@@ -91,7 +162,7 @@ class model():
 
 
         ## Creating variable table information
-        regression_info = {self._DV_design_info.term_names[0]: [],
+        self.regression_info = {self._DV_design_info.term_names[0]: [],
                            "Coef.": [],
                            "Std. Err.": [],
                            f"{self._test_stat_name}": [],
@@ -103,41 +174,38 @@ class model():
                                                           self.model_data["test_stat"], self.model_data["test_stat_p_values"],
                                                           self.model_data["conf_int_lower"], self.model_data["conf_int_upper"]):
 
-            regression_info[self._DV_design_info.term_names[0]].append(column)
-            regression_info["Coef."].append(round(beta[0], decimals["Coef."]))
-            regression_info["Std. Err."].append(round(stderr[0], decimals["Std. Err."]))
-            regression_info[f"{self._test_stat_name}"].append(round(t[0], decimals["test_stat"]))
-            regression_info["p-value"].append(round(p, decimals["test_stat_p"]))
-            regression_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci, decimals["CI"]),
+            self.regression_info[self._DV_design_info.term_names[0]].append(column)
+            self.regression_info["Coef."].append(round(beta[0], decimals["Coef."]))
+            self.regression_info["Std. Err."].append(round(stderr[0], decimals["Std. Err."]))
+            self.regression_info[f"{self._test_stat_name}"].append(round(t[0], decimals["test_stat"]))
+            self.regression_info["p-value"].append(round(p, decimals["test_stat_p"]))
+            self.regression_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci, decimals["CI"]),
                                                                                    round(u_ci, decimals["CI"])])
 
-        regression_info = base_table(self._patsy_factor_information, self._mapping,
-                                     self._rp_factor_information, pandas.DataFrame.from_dict(regression_info))
+        self.regression_info = self._regression_base_table()
 
-        if pretty_format==True:
+
+
+        if pretty_format == True:
 
             descriptives = {
-
-                    "Number of obs = ": self.nobs,
-                    "Root MSE = ": round(self.model_data["root_mse"], decimals.get("Root MSE", 4)),
-                    "R-squared = ": round(self.model_data["r squared"], decimals.get("R-squared", 4)),
-                    "Adj R-squared = ": round(self.model_data["r squared adj."], decimals.get("Adj R-squared", 4))
-
+                "Number of obs": self.nobs,
+                "Root MSE": round(self.model_data["root_mse"], decimals.get("Root MSE", 4)),
+                "R-squared": round(self.model_data["r squared"], decimals.get("R-squared", 4)),
+                "Adj R-squared": round(self.model_data["r squared adj."], decimals.get("Adj R-squared", 4))
                 }
 
             top = {
-
-                    "Source": ["Model", ''],
-                    "Sum of Squares": [round(self.model_data["sum_of_square_model"], decimals.get("Sum of Squares", 4)), ''],
-                    "Degrees of Freedom": [round(self.model_data["degrees_of_freedom_model"], decimals.get("Degrees of Freedom", 4)), ''],
-                    "Mean Squares": [round(self.model_data["msr"], decimals.get("Mean Squares", 4)), ''],
-                    "F value": [round(self.model_data["f_value_model"], decimals.get("test_stat", 4)), ''],
-                    "p-value": [round(self.model_data["f_p_value_model"], decimals.get("test_stat_p", 4)), ''],
-                    "Eta squared": [round(self.model_data["Eta squared"], decimals.get("Effect size", 4)), ''],
-                    "Epsilon squared": [round(self.model_data["Epsilon squared"], decimals.get("Effect size", 4)), ''],
-                    "Omega squared": [round(self.model_data["Omega squared"], decimals.get("Effect size", 4)), '']
-
-                    }
+                "Source": ["Model", ''],
+                "Sum of Squares": [round(self.model_data["sum_of_square_model"], decimals.get("Sum of Squares", 4)), ''],
+                "Degrees of Freedom": [round(self.model_data["degrees_of_freedom_model"], decimals.get("Degrees of Freedom", 4)), ''],
+                "Mean Squares": [round(self.model_data["msr"], decimals.get("Mean Squares", 4)), ''],
+                "F value": [round(self.model_data["f_value_model"], decimals.get("test_stat", 4)), ''],
+                "p-value": [round(self.model_data["f_p_value_model"], decimals.get("test_stat_p", 4)), ''],
+                "Eta squared": [round(self.model_data["Eta squared"], decimals.get("Effect size", 4)), ''],
+                "Epsilon squared": [round(self.model_data["Epsilon squared"], decimals.get("Effect size", 4)), ''],
+                "Omega squared": [round(self.model_data["Omega squared"], decimals.get("Effect size", 4)), '']
+            }
 
             bottom = {
 
@@ -156,7 +224,7 @@ class model():
 
                     }
 
-            results = {
+            model_results = {
 
                     "Source": top["Source"] + bottom["Source"],
                     "Sum of Squares": top["Sum of Squares"] + bottom["Sum of Squares"],
@@ -173,12 +241,10 @@ class model():
         else:
 
             descriptives = {
-
-                    "Number of obs = ": self.nobs,
-                    "Root MSE = ": round(self.model_data["root_mse"], decimals),
-                    "R-squared = ": round(self.model_data["r squared"], decimals),
-                    "Adj R-squared = ": round(self.model_data["r squared adj."], decimals)
-
+                "Number of obs = ": self.nobs,
+                "Root MSE = ": round(self.model_data["root_mse"], decimals.get("Root MSE", 4)),
+                "R-squared = ": round(self.model_data["r squared"], decimals.get("R-squared", 4)),
+                "Adj R-squared = ": round(self.model_data["r squared adj."], decimals.get("Adj R-squared", 4))
                 }
 
             top = {
@@ -195,11 +261,14 @@ class model():
             bottom = {
 
                     "Source": ["Residual", "Total"],
-                    "Sum of Squares": [round(self.model_data["sum_of_square_residual"], decimals), round(self.model_data["sum_of_square_total"], decimals)],
-                    "Degrees of Freedom": [round(self.model_data["degrees_of_freedom_residual"], decimals), round(self.model_data["degrees_of_freedom_total"], decimals)],
-                    "Mean Squares": [round(self.model_data["mse"], decimals), round(self.model_data["mst"], decimals)],
-                    "F value": [numpy.nan, numpy.nan],
-                    "p-value": [numpy.nan, numpy.nan]
+                    "Sum of Squares": [round(self.model_data["sum_of_square_residual"], decimals.get("Sum of Squares", 4)),
+                                       round(self.model_data["sum_of_square_total"], decimals.get("Sum of Squares", 4))],
+                    "Degrees of Freedom": [round(self.model_data["degrees_of_freedom_residual"], decimals.get("Degrees of Freedom", 4)),
+                                           round(self.model_data["degrees_of_freedom_total"], decimals.get("Degrees of Freedom", 4))],
+                    "Mean Squares": [round(self.model_data["mse"], decimals.get("Mean Squares", 4)),
+                                     round(self.model_data["mst"], decimals.get("Mean Squares", 4))],
+                    "F value": [np.nan, np.nan],
+                    "p-value": [np.nan, np.nan]
 
                     }
 
@@ -213,16 +282,20 @@ class model():
                     "p-value": top["p-value"] + bottom["p-value"]
 
                     }
+        
 
         if return_type == "Dataframe":
 
-            return (pandas.DataFrame.from_dict(descriptives, orient="index"),
-                    pandas.DataFrame.from_dict(results),
-                    pandas.DataFrame.from_dict(regression_info))
+            descriptives = pd.DataFrame.from_dict(descriptives, orient="index")
+            model_results = pd.DataFrame.from_dict(model_results)
+
+            return (descriptives.T,
+                    model_results,
+                    self.regression_info)
 
         elif return_type == "Dictionary":
 
-            return (descriptives, results, regression_info)
+            return (descriptives, results, self.regression_info)
 
         else:
 
