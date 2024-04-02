@@ -7,7 +7,8 @@ import pandas as pd
 
 from .summary import summarize
 from .utility import *
-
+from .predict import predict
+from .objective_functions import likelihood
 
 class model():
     """
@@ -22,10 +23,14 @@ class model():
     def __init__(self, formula_like, data={}, matrix_type=1, conf_level=0.95,
                  family="gaussian", link="normal",
                  solver_method="ols",
+                 obj_function="numeric",
                  solver_options={"tol": 1e-7, "max_iter": 300, "display": True}):
 
         self.__name__ = "researchpy.model"
 
+        base_solver_options = {"tol": 1e-7, "max_iter": 300, "display": True}
+        solver_options = base_solver_options | solver_options
+        self.solver_options = solver_options
 
         self.CI_LEVEL = conf_level
         self.conf_level = conf_level
@@ -42,6 +47,15 @@ class model():
         @conf_level.setter
         def conf_level(self, conf_level):
             self._CI_LEVEL = float(conf_level)
+
+
+        self.obj_function = obj_function
+        @property
+        def obj_function(self):
+            return self._obj_function
+        @obj_function.setter
+        def obj_function(self, obj_function):
+            self._obj_function = obj_function
 
 
         # matrix_type = 1 includes intercept; matrix_type = 0 does not include the intercept
@@ -71,6 +85,20 @@ class model():
         self._patsy_factor_information, self._mapping, self._rp_factor_information = variable_information(self.IV.design_info.term_names,
                                                                                                           self.IV.design_info.column_names,
                                                                                                           data)
+
+
+    def predict(self, estimate=None, trans=None):
+        return predict(self, estimate=estimate, trans=trans)
+
+
+    def objective_function(self):
+
+        if self.obj_func.lower() in ["log-likelihood", "log likelihood", "ll"]:
+
+            y_e = predict(estimate="predict_y")
+            objective = likelihood.log_likelihood(y_e)
+
+        return objective
 
 
     def _regression_base_table(self):
@@ -180,7 +208,7 @@ class model():
             self.regression_info[f"{self._test_stat_name}"].append(round(t[0], decimals["test_stat"]))
             self.regression_info["p-value"].append(round(p, decimals["test_stat_p"]))
             self.regression_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci, decimals["CI"]),
-                                                                                   round(u_ci, decimals["CI"])])
+                                                                                        round(u_ci, decimals["CI"])])
 
         self.regression_info = self._regression_base_table()
 
@@ -317,7 +345,8 @@ class general_model():
     """
 
 
-    def __init__(self, formula_like, data = {}, matrix_type = 1, family="gaussian", link="normal", tol=1e-7, max_iter=300, display=True):
+    def __init__(self, formula_like, data={}, matrix_type=1, family="gaussian", link="normal",
+                 tol=1e-7, max_iter=300, display=True):
         # matrix_type = 1 includes intercept
         # matrix_type = 0 does not include the intercept
 

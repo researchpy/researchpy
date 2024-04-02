@@ -1,24 +1,19 @@
 # -*- coding: utf-8 -*-
-"""
-
-@author: Corey Bryant
-
-Last udpated: 03/05/2024
-
-"""
 
 from .version import __version__
+from .utility import *
+from .model import *
 from .ttest import ttest
 from .summary import *
 from .correlation import *
 from .crosstab import *
 from .difference_test import *
 from .basic_stats import *
-from .utility import *
-from .model import *
 from .signrank import *
 from .predict import *
 from .anova import *
 from .ols import *
 from .regression import *
+from .logit import *
+
 
