@@ -4,7 +4,7 @@ import scipy.stats
 import patsy
 import pandas
 
-from researchpy.model import model
+from researchpy.model import model, general_model
 from researchpy.utility import *
 from researchpy.predict import predict
 from researchpy.objective_functions import likelihood
@@ -14,7 +14,7 @@ from researchpy.objective_functions import likelihood
 
 class logistic(model):
 
-    __name__ = "researchpy.logit"
+    #__name__ = "researchpy.logit"
 
     def __init__(self, formula_like, data={},
                  solver_method="mle", solver_options={"tol": 1e-7, "max_iter": 300, "display": True}):
@@ -22,6 +22,7 @@ class logistic(model):
         super().__init__(formula_like, data, matrix_type=1,
                          solver_method=solver_method, solver_options=solver_options,
                          family="binomial", link="logit", obj_function="log-likelihood")
+        self.__name__ = "researchpy.logit"
 
         self.family = "binomial"
         self.link = "logit"
@@ -74,7 +75,7 @@ class logistic(model):
                 iteration_update = f'Iteration {it}: Log-likelihood = {ll}'
                 print(iteration_update)
 
-"""
+
 class logistic_working(general_model):
 
     __name__ = "researchpy.logit"
@@ -135,5 +136,3 @@ class logistic_working(general_model):
             if display:
                 iteration_update = f'Iteration {it}: Log-likelihood = {likelihood}'
                 print(iteration_update)
-
-"""

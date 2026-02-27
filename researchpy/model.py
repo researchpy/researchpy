@@ -24,7 +24,7 @@ class model():
                  family="gaussian", link="normal",
                  solver_method="ols",
                  obj_function="numeric",
-                 solver_options={"tol": 1e-7, "max_iter": 300, "display": True}):
+                 solver_options={"algorithm": "newton-raphson", "tol": 1e-7, "max_iter": 300, "display": True}):
 
         self.__name__ = "researchpy.model"
 
@@ -75,6 +75,7 @@ class model():
         self._link = link
         self._CI_LEVEL = conf_level
         self._solver = {"method": solver_method,
+                        "algorithm": solver_options["algorithm"],
                         "tol": solver_options["tol"],
                         "max_iter": solver_options["max_iter"],
                         "display": solver_options["display"]}
@@ -203,12 +204,20 @@ class model():
                                                           self.model_data["conf_int_lower"], self.model_data["conf_int_upper"]):
 
             self.regression_info[self._DV_design_info.term_names[0]].append(column)
-            self.regression_info["Coef."].append(round(beta[0], decimals["Coef."]))
-            self.regression_info["Std. Err."].append(round(stderr[0], decimals["Std. Err."]))
-            self.regression_info[f"{self._test_stat_name}"].append(round(t[0], decimals["test_stat"]))
-            self.regression_info["p-value"].append(round(p, decimals["test_stat_p"]))
-            self.regression_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci, decimals["CI"]),
-                                                                                        round(u_ci, decimals["CI"])])
+            try:
+                self.regression_info["Coef."].append(round(beta.item(), decimals["Coef."]))
+                self.regression_info["Std. Err."].append(round(stderr.item(), decimals["Std. Err."]))
+                self.regression_info[f"{self._test_stat_name}"].append(round(t.item(), decimals["test_stat"]))
+                self.regression_info["p-value"].append(round(p.item(), decimals["test_stat_p"]))
+                self.regression_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci.item(), decimals["CI"]),
+                                                                                                    round(u_ci.item(), decimals["CI"])])
+            except AttributeError:
+                self.regression_info["Coef."].append(round(beta.item(), decimals["Coef."]))
+                self.regression_info["Std. Err."].append(round(stderr.item(), decimals["Std. Err."]))
+                self.regression_info[f"{self._test_stat_name}"].append(round(t.item(), decimals["test_stat"]))
+                self.regression_info["p-value"].append(round(p.item(), decimals["test_stat_p"]))
+                self.regression_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci.item(), decimals["CI"]),
+                                                                                        round(u_ci.item(), decimals["CI"])])
 
         self.regression_info = self._regression_base_table()
 
@@ -349,6 +358,8 @@ class general_model():
                  tol=1e-7, max_iter=300, display=True):
         # matrix_type = 1 includes intercept
         # matrix_type = 0 does not include the intercept
+
+        self.__name__ = "researchpy.general_model"
 
         if matrix_type == 1:
             self.DV, self.IV = patsy.dmatrices(formula_like, data, 1)

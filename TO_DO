@@ -1,6 +1,6 @@
 TO DO
 =====
-[] Ensure ttest.py change from group1.append() -> pd.concat([group1, group2]) functions as expected
+[x] Ensure ttest.py change from group1.append() -> pd.concat([group1, group2]) functions as expected
 [] Validate Cohen's D_z for -difference_test- and -ttest- conducting a paired samples t-test
 
 

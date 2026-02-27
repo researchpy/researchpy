@@ -15,5 +15,6 @@ from .anova import *
 from .ols import *
 from .regression import *
 from .logit import *
+from .LogisticRegression import LogisticRegression
 
 
