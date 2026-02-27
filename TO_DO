@@ -7,7 +7,7 @@ TO DO
 CHANGES
 =======
 [] ttest.py
-    1. change from group1.append90 --> pd.concat([group1, group2])
+    1. change from group1.append() --> pd.concat([group1, group2])
     2. added supports both Cohen's D_z and D_av for within-groups
 
 [] Added new general_model class
