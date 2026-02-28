@@ -17,16 +17,19 @@ class LogisticRegression(model):
     Logistic regression using Newton-Raphson for MLE.
     """
 
+
+
     def __init__(self, formula_like, data={},
                  solver_method="mle",
                  solver_options={"algorithm": "newton-raphson", "tol": 1e-7, "max_iter": 300, "display": True}):
+
+        self._test_stat_name = "z"
 
         super().__init__(formula_like, data, matrix_type=1,
                          solver_method=solver_method, solver_options=solver_options,
                          family="binomial", link="logit", obj_function="log-likelihood")
 
         self.__name__ = "researchpy.LogisticRegression"
-        self._test_stat_name = "z"
 
         self.model_data = {}
 
@@ -71,7 +74,7 @@ class LogisticRegression(model):
 
         self.n, self.k = self.IV.shape
 
-        self.model_data["betas"] = np.array(self.model_data["betas"])
+        #self.model_data["betas"] = np.array(self.model_data["betas"])
 
         # Standard errors
         linear_pred = self.IV @ self.model_data["betas"]
@@ -83,7 +86,7 @@ class LogisticRegression(model):
             cov_matrix = np.linalg.pinv(self.IV.T @ W @ self.IV)
 
         self.model_data["standard_errors"] = np.sqrt(np.diag(cov_matrix)).reshape(-1, 1)
-        self.model_data["standard_errors"] = np.array(self.model_data["standard_errors"])
+        #self.model_data["standard_errors"] = np.array(self.model_data["standard_errors"])
 
         # Wald z-statistics and p-values
         self.model_data["test_stat"] = self.model_data["betas"] / self.model_data["standard_errors"]
