@@ -22,12 +22,22 @@ import numpy as np
 url = "https://stats.idre.ucla.edu/stat/stata/dae/binary.dta"
 pol = pd.read_stata(url)
 
-m = rp.LogisticRegression("admit ~ gre + gpa + C(rank)", data=pol)
+m2 = rp.ols("admit ~ gre + gpa + C(rank)", data=pol)
+d, x, b = m2.table_regression_results()
+
+m = rp.Logistic("admit ~ gre + gpa + C(rank)", data=pol)
 m.table_regression_results()
 
 
-m2 = rp.ols("admit ~ gre + gpa + C(rank)", data=pol)
-m2.table_regression_results()
+m = rp.LogisticRegression("admit ~ gre + gpa + C(rank)", data=pol)
+m.table_regression_results()
+
+m = rp.ols("admit ~ gre + gpa + C(rank)", data=pol)
+
+
+# %% Fixing OLS regression
+m = rp.model("admit ~ gre + gpa + C(rank)", data=pol)
+
 
 
 

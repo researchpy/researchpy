@@ -12,9 +12,12 @@ from .basic_stats import *
 from .signrank import *
 from .predict import *
 from .anova import *
-from .ols import *
+#from .ols import *
 from .regression import *
-from .logit import *
 from .LogisticRegression import LogisticRegression
+
+from .MultivariableRegression.ols import ols
+from .MultivariableRegression.Logistic import Logistic
+
 
 

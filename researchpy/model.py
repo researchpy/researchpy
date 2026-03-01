@@ -70,6 +70,8 @@ class model():
         self.formula = formula_like
         self._DV_design_info = self.DV.design_info
         self._IV_design_info = self.IV.design_info
+        if not hasattr(self, "_test_stat_name"):
+            self._test_stat_name = "t" if family == "gaussian" else "z"
         self._family = family
         self._link = link
         self._CI_LEVEL = conf_level
@@ -205,18 +207,35 @@ class model():
                                                                                                                               self.model_data["conf_int_upper"].flatten().reshape(-1, 1))), decimals["CI"]).tolist()]
 
         except:
-            for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names,
-                                                              self.model_data["betas"], self.model_data["standard_errors"],
-                                                              self.model_data["test_stat"], self.model_data["test_stat_p_values"],
-                                                              self.model_data["conf_int_lower"], self.model_data["conf_int_upper"]):
+            try:
+                for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names,
+                                                                  self.model_data["betas"], self.model_data["standard_errors"],
+                                                                  self.model_data["test_stat"], self.model_data["test_stat_p_values"],
+                                                                  self.model_data["conf_int_lower"], self.model_data["conf_int_upper"]):
 
-                self.regression_table_info[self._DV_design_info.term_names[0]].append(column)
-                self.regression_table_info["Coef."].append(round(beta.item(), decimals["Coef."]))
-                self.regression_table_info["Std. Err."].append(round(stderr.item(), decimals["Std. Err."]))
-                self.regression_table_info[f"{self._test_stat_name}"].append(round(t.item(), decimals["test_stat"]))
-                self.regression_table_info["p-value"].append(round(p.item(), decimals["test_stat_p"]))
-                self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci.item(), decimals["CI"]),
-                                                                                                  round(u_ci.item(), decimals["CI"])])
+                    self.regression_table_info[self._DV_design_info.term_names[0]].append(column)
+                    self.regression_table_info["Coef."].append(round(beta.item(), decimals["Coef."]))
+                    self.regression_table_info["Std. Err."].append(round(stderr.item(), decimals["Std. Err."]))
+                    self.regression_table_info[f"{self._test_stat_name}"].append(round(t.item(), decimals["test_stat"]))
+                    self.regression_table_info["p-value"].append(round(p.item(), decimals["test_stat_p"]))
+                    self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci.item(), decimals["CI"]),
+                                                                                                      round(u_ci.item(), decimals["CI"])])
+            except AttributeError:
+                for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names,
+                                                                  self.model_data["betas"],
+                                                                  self.model_data["standard_errors"],
+                                                                  self.model_data["test_stat"],
+                                                                  self.model_data["test_stat_p_values"],
+                                                                  self.model_data["conf_int_lower"],
+                                                                  self.model_data["conf_int_upper"]):
+
+                    self.regression_table_info[self._DV_design_info.term_names[0]].append(column)
+                    self.regression_table_info["Coef."].append(round(beta.item(), decimals["Coef."]))
+                    self.regression_table_info["Std. Err."].append(round(stderr.item(), decimals["Std. Err."]))
+                    self.regression_table_info[f"{self._test_stat_name}"].append(round(t.item(), decimals["test_stat"]))
+                    self.regression_table_info["p-value"].append(round(p.item(), decimals["test_stat_p"]))
+                    self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci, decimals["CI"]),
+                                                                                                      round(u_ci, decimals["CI"])])
 
         self.regression_table_info = self._regression_base_table()
 
@@ -385,6 +404,8 @@ class general_model():
         self.formula = formula_like
         self._DV_design_info = self.DV.design_info
         self._IV_design_info = self.IV.design_info
+        if not hasattr(self, "_test_stat_name"):
+            self._test_stat_name = "t" if family == "gaussian" else "z"
         self._family = family
         self._link = link
         self._CI_LEVEL = conf_level
