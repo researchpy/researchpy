@@ -26,6 +26,11 @@ m = rp.LogisticRegression("admit ~ gre + gpa + C(rank)", data=pol)
 m.table_regression_results()
 
 
+m2 = rp.ols("admit ~ gre + gpa + C(rank)", data=pol)
+m2.table_regression_results()
+
+
+
 # %%
 url = "https://stats.idre.ucla.edu/stat/data/hsb2.dta"
 hsb = pd.read_stata(url)

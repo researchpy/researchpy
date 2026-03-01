@@ -4,7 +4,7 @@ import scipy.stats
 import patsy
 import pandas
 
-from researchpy.model import model
+from researchpy.model import general_model
 from researchpy.utility import *
 from researchpy.predict import predict
 from researchpy.objective_functions import likelihood
@@ -12,7 +12,7 @@ from researchpy.objective_functions import likelihood
 
 
 
-class LogisticRegression(model):
+class LogisticRegression(general_model):
     """
     Logistic regression using Newton-Raphson for MLE.
     """

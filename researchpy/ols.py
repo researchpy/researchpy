@@ -56,7 +56,12 @@ class ols(model):
 
 
     def __init__(self, formula_like, data={}):
-        super().__init__(formula_like, data, matrix_type=1)
+
+        self._test_stat_name = "t"
+
+        super().__init__(formula_like, data, matrix_type=1, solver_method="ols",
+                         family="gaussian", link="normal", obj_function="numeric")
+
         self.__name__ = "researchpy.ols"
 
         self.model_data = {}
@@ -194,25 +199,25 @@ class ols(model):
 
             }
 
-        regression_info = {self._DV_design_info.term_names[0]: [],
-                           "Coef.": [],
-                           "Std. Err.": [],
-                           "t": [],
-                           "p-value": [],
-                           f"{int(conf_level * 100)}% Conf. Interval": []}
+        regression_table_info = {self._DV_design_info.term_names[0]: [],
+                                 "Coef.": [],
+                                 "Std. Err.": [],
+                                 f"{self._test_stat_name}": [],
+                                 "p-value": [],
+                                 f"{int(conf_level * 100)}% Conf. Interval": []}
 
         for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names, self.model_data["betas"], standard_errors, t_stastics, t_p_values, conf_int_lower, conf_int_upper):
 
-            regression_info[self._DV_design_info.term_names[0]].append(column)
-            regression_info["Coef."].append(round(beta[0], decimals))
-            regression_info["Std. Err."].append(round(stderr[0], decimals))
-            regression_info["t"].append(round(t[0], decimals))
-            regression_info["p-value"].append(round(p, decimals))
-            regression_info[f"{int(conf_level * 100)}% Conf. Interval"].append(
+            regression_table_info[self._DV_design_info.term_names[0]].append(column)
+            regression_table_info["Coef."].append(round(beta[0], decimals))
+            regression_table_info["Std. Err."].append(round(stderr[0], decimals))
+            regression_table_info[f"{self._test_stat_name}"].append(round(t[0], decimals))
+            regression_table_info["p-value"].append(round(p, decimals))
+            regression_table_info[f"{int(conf_level * 100)}% Conf. Interval"].append(
                 [round(l_ci, decimals), round(u_ci, decimals)])
 
-        regression_info = base_table(self._patsy_factor_information, self._mapping,
-                                     self._rp_factor_information, pandas.DataFrame.from_dict(regression_info))
+        regression_table_info = base_table(self._patsy_factor_information, self._mapping,
+                                     self._rp_factor_information, pandas.DataFrame.from_dict(regression_table_info))
 
         if pretty_format == True:
 
@@ -313,11 +318,11 @@ class ols(model):
 
         if return_type == "Dataframe":
 
-            return (pandas.DataFrame.from_dict(descriptives, orient="index"), pandas.DataFrame.from_dict(results), pandas.DataFrame.from_dict(regression_info))
+            return (pandas.DataFrame.from_dict(descriptives, orient="index"), pandas.DataFrame.from_dict(results), pandas.DataFrame.from_dict(regression_table_info))
 
         elif return_type == "Dictionary":
 
-            return (descriptives, results, regression_info)
+            return (descriptives, results, regression_table_info)
 
         else:
 
