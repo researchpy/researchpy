@@ -4,7 +4,7 @@ import scipy.stats
 import patsy
 import pandas
 
-from researchpy.model import general_model
+from researchpy.model import model, general_model
 from researchpy.utility import *
 from researchpy.predict import predict
 from researchpy.objective_functions import likelihood
@@ -98,36 +98,16 @@ class Logistic(general_model):
 
 
 
-        # Creating Variable Table Information
-        """
-            regression_info = {
-            self._DV_design_info.term_names[0]: [],
-            "Coef.": [],
-            "Std. Err.": [],
-            "z": [],
-            "p-value": [],
-            f"{int(self._CI_LEVEL * 100)}% Conf. Interval": []
-        }
-        """
-
-
-
     def predict(self, estimate=None):
         linear_pred = self.IV @ self.model_data["betas"]
         return 1 / (1 + np.exp(-linear_pred))
 
 
-    def results(self, decimals=4):
+    def results(self, return_type="Dataframe", pretty_format=True,
+                decimals={"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4, "CI": 2,
+                          "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
+                          'Degrees of Freedom': 1, 'Mean Squares': 4, 'Effect size': 4},
+                *args):
 
-        # Results table
-        columns = self._IV_design_info.column_names
-        results = pd.DataFrame({
-            "Coef.": self.model_data["betas"].flatten(),
-            "Std. Err.": self.model_data["standard_errors"].flatten(),
-            "z": self.model_data["test_stat"].flatten(),
-            "p-value": self.model_data["test_stat_p_values"].flatten(),
-            "95% Conf. Interval Lower": self.model_data["conf_int_lower"].flatten(),
-            "95% Conf. Interval Upper": self.model_data["conf_int_upper"].flatten()
-        }, index=columns).round(decimals)
+        return self._table_regression_results(return_type=return_type, pretty_format=pretty_format, decimals=decimals)
 
-        return results

@@ -201,32 +201,6 @@ class ols(model):
 
     def results(self, return_type="Dataframe", decimals=4, pretty_format=True, conf_level=0.95):
 
-        ### Standard Errors
-        standard_errors = (numpy.array(numpy.sqrt(self.variance_covariance_beta_matrix.diagonal()))).T
-
-        ### Confidence Intrvals
-        conf_int_lower = []
-        conf_int_upper = []
-
-        for beta, se in zip(self.model_data["betas"], standard_errors):
-
-            try:
-                lower, upper = scipy.stats.t.interval(conf_level, self.model_data["degrees_of_freedom_residual"], loc=beta, scale=se)
-
-                conf_int_lower.append(float(lower))
-                conf_int_upper.append(float(upper))
-
-            except:
-
-                conf_int_lower.append(numpy.nan)
-                conf_int_upper.append(numpy.nan)
-
-        ### T-stastics
-        t_stastics = self.model_data["betas"] * (1 / standard_errors)
-        # Two-sided p-value
-        t_p_values = numpy.array([float(scipy.stats.t.sf(numpy.abs(
-            t), self.model_data["degrees_of_freedom_residual"]) * 2) for t in t_stastics])
-
         ## Creating variable table information
         regression_description_info = {
 
