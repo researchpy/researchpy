@@ -423,7 +423,7 @@ class model():
         return table.iloc[:, 5:]
 
 
-    def table_regression_results(self, return_type="Dataframe", decimals={"Coef.": 2,
+    def _table_regression_results(self, return_type="Dataframe", decimals={"Coef.": 2,
                                                                           "Std. Err.": 4,
                                                                           "test_stat": 4,
                                                                           "test_stat_p": 4,
@@ -437,6 +437,11 @@ class model():
                                                                           'Effect size': 4
                                                                           },
                                  pretty_format=True, *args):
+
+        base_decimals = {"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4, "CI": 2,
+                         "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
+                         'Degrees of Freedom': 1,  'Mean Squares': 4, 'Effect size': 4}
+        decimals = base_decimals | decimals
 
         try:
             self.regression_table_info[self._DV_design_info.term_names[0]] = self._IV_design_info.column_names
@@ -478,7 +483,7 @@ class model():
                     self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci, decimals["CI"]),
                                                                                                       round(u_ci, decimals["CI"])])
 
-        self.regression_table_info = self._regression_base_table()
+        #self.regression_table_info = self._regression_base_table()
 
 
 
@@ -573,7 +578,7 @@ class model():
         if return_type == "Dataframe":
             descriptives = pd.DataFrame.from_dict(descriptives, orient="index")
             model_results = pd.DataFrame.from_dict(model_results)
-            return (descriptives.T, model_results, self.regression_table_info)
+            return (descriptives.T, model_results, self._regression_base_table())
 
         elif return_type == "Dictionary":
             return (descriptives, results, self.regression_table_info)

@@ -36,8 +36,10 @@ m.table_regression_results()
 m = rp.model("admit ~ gre + gpa + C(rank)", data=pol)
 
 m2 = rp.ols("admit ~ gre + gpa + C(rank)", data=pol)
-d, x, b = m2.table_regression_results()
+d, x, b = m2.results()
 
+
+m3 = rp.anova("admit ~ gre + gpa + C(rank)", data=pol)
 
 # %%
 url = "https://stats.idre.ucla.edu/stat/data/hsb2.dta"
