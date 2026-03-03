@@ -12,9 +12,7 @@ import patsy
 import pandas
 
 from researchpy.summary import summarize
-#from researchpy.ols import *
-from .MultivariableRegression.ols import ols
-#from .model import model
+from researchpy.MultivariableRegression.ols import ols
 from researchpy.utility import *
 
 

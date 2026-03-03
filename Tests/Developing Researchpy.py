@@ -11,35 +11,61 @@ current version of researchpy and then install researchpy local version.
 
 """
 # %%
+import os
+import requests
 import researchpy as rp
 import pandas as pd
 pd.set_option('display.max_columns',30,
               'display.width',1000)
 import numpy as np
 
-
-
 url = "https://stats.idre.ucla.edu/stat/stata/dae/binary.dta"
 pol = pd.read_stata(url)
 
+# This code block is for downloading the systolic.dta file from the Stata website and saving it locally. If the file
+# already exists locally, it will read it directly from the provided local path.
+systolic_local_path = "C:/Users/Corey Bryant/Downloads/systolic.dta"
+if not os.path.exists(systolic_local_path):
+    url = "https://www.stata-press.com/data/r19/systolic.dta"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        with open(systolic_local_path, "wb") as f:
+            f.write(response.content)
+    else:
+        raise Exception(f"Failed to download file: {response.status_code}")
+
+systolic = pd.read_stata(systolic_local_path)
+del url, systolic_local_path, f, headers, response
+
+# %%
+mdl = rp.model("admit ~ gre + gpa + C(rank)", data=pol)
+
+# %%
+m = rp.logistic("admit ~ gre + gpa + C(rank)", data=pol)
+m.results()
 
 
-m1 = rp.Logistic("admit ~ gre + gpa + C(rank)", data=pol)
-m1.table_regression_results()
+# %% OLS regression
+mols = rp.ols("systolic ~ C(drug) + C(disease) + C(drug):C(disease)", data=systolic)
+desc, mod, table = mols.results()
+
+print(desc, mod, table, sep="\n" * 2)
 
 
-m = rp.LogisticRegression("admit ~ gre + gpa + C(rank)", data=pol)
-m.table_regression_results()
+# %% ANOVA
+mano = rp.anova("systolic ~ C(drug) + C(disease) + C(drug):C(disease)", data=systolic, sum_of_squares=3)
+desc, table = mano.results()
+
+print(desc, table, sep="\n" * 2)
 
 
-# %% Fixing OLS regression
-m = rp.model("admit ~ gre + gpa + C(rank)", data=pol)
+# %% LM regression
+mlm = rp.lm("systolic ~ C(drug) + C(disease) + C(drug):C(disease)", data=systolic)
+desc, mod, table = mlm.results()
 
-m2 = rp.ols("admit ~ gre + gpa + C(rank)", data=pol)
-d, x, b = m2.results()
+print(desc, mod, table, sep="\n" * 2)
 
-
-m3 = rp.anova("admit ~ gre + gpa + C(rank)", data=pol)
 
 # %%
 url = "https://stats.idre.ucla.edu/stat/data/hsb2.dta"
@@ -150,4 +176,3 @@ regression_info[f"{int(m.CI_LEVEL * 100)}% Conf. Interval"].append([np.round(m.m
                                                                        np.round(m.model_data["conf_int_upper"], decimals["CI"])])
 
 print(regression_info)
-

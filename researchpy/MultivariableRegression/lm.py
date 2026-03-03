@@ -6,10 +6,10 @@ import scipy.stats
 import patsy
 import pandas
 
-from .summary import summarize
-from .model import model
-from .utility import *
-from .predict import predict
+from researchpy.summary import summarize
+from researchpy.model import model
+from researchpy.utility import *
+from researchpy.predict import predict
 
 
 class lm(model):
@@ -56,16 +56,14 @@ class lm(model):
     """
 
 
-    def __init__(self, formula_like, data={}, conf_level=0.95):
-        super().__init__(formula_like, data, matrix_type=1, conf_level=conf_level)
-        self.__name__ = "researchpy.lm"
+    def __init__(self, formula_like, data={}):
 
-        @property
-        def CI_LEVEL(self, conf_level):
-            return super().CI_LEVEL(conf_level)
-        @property
-        def conf_level(self, conf_level):
-            return super().conf_level(conf_level)
+        self._test_stat_name = "t"
+
+        super().__init__(formula_like, data, matrix_type=1, solver_method="ols",
+                         family="gaussian", link="normal", obj_function="numeric")
+
+        self.__name__ = "researchpy.lm"
 
         self.model_data = {}
 
@@ -103,13 +101,13 @@ class lm(model):
 
         ###  Sum of Squares
         # Total sum of squares (SSTO)
-        self.model_data["sum_of_square_total"] = float(self.DV.T @ self.DV - (1/self.nobs) * self.DV.T @ self.model_data["J"] @ self.DV)
+        self.model_data["sum_of_square_total"] = float((self.DV.T @ self.DV - (1/self.nobs) * self.DV.T @ self.model_data["J"] @ self.DV).item())
 
         # Model sum of squares (SSR)
-        self.model_data["sum_of_square_model"] = float(self.model_data["betas"].T @ self.IV.T @ self.DV - (1/self.nobs) * self.DV.T @ self.model_data["J"] @ self.DV)
+        self.model_data["sum_of_square_model"] = float((self.model_data["betas"].T @ self.IV.T @ self.DV - (1/self.nobs) * self.DV.T @ self.model_data["J"] @ self.DV).item())
 
         # Error sum of squares (SSE)
-        self.model_data["sum_of_square_residual"] = float(residuals.T @ residuals)
+        self.model_data["sum_of_square_residual"] = float((residuals.T @ residuals).item())
 
         ### Degrees of freedom
         # Model
@@ -145,9 +143,9 @@ class lm(model):
         self.model_data["r squared adj."] = 1 - (self.model_data["degrees_of_freedom_total"] / self.model_data["degrees_of_freedom_residual"]) * (
             self.model_data["sum_of_square_residual"] / self.model_data["sum_of_square_total"])
         self.model_data["Eta squared"] = self.model_data["r squared"]
-        
+
         self.model_data["Epsilon squared"] = (self.model_data["degrees_of_freedom_model"] * (self.model_data["msr"] - self.model_data["mse"])) / (self.model_data["sum_of_square_total"])
-        
+
         self.model_data["Omega squared"] = (self.model_data["degrees_of_freedom_model"] * (self.model_data["msr"] - self.model_data["mse"])) / (self.model_data["sum_of_square_total"] + self.model_data["mse"])
 
         ### Variance-covariance matrices
@@ -167,45 +165,47 @@ class lm(model):
             ## Not implemented yet so it's same as non-robust
          #   self.beta_variance_covariance_matrix = np.matrix(self.mse * np.linalg.inv(self.x.T @ self.x))
 
-
         ### Standard Errors
         self.model_data["standard_errors"] = (numpy.array(numpy.sqrt(self.variance_covariance_beta_matrix.diagonal()))).T
 
         ### Confidence Intrvals
-        self.model_data["conf_int_lower"] = []
-        self.model_data["conf_int_upper"] = []
+        conf_int_lower = []
+        conf_int_upper = []
 
         for beta, se in zip(self.model_data["betas"], self.model_data["standard_errors"]):
 
             try:
-                lower, upper = scipy.stats.t.interval(self.CI_LEVEL, self.model_data["degrees_of_freedom_residual"],
-                                                      loc=beta, scale=se)
+                lower, upper = scipy.stats.t.interval(self._CI_LEVEL, self.model_data["degrees_of_freedom_residual"], loc=beta, scale=se)
+                conf_int_lower.append(float(lower))
+                conf_int_upper.append(float(upper))
 
-                self.model_data["conf_int_lower"].append(float(lower))
-                self.model_data["conf_int_upper"].append(float(upper))
+            except TypeError:
+                try:
+                    conf_int_lower.append(lower.item())
+                    conf_int_upper.append(upper.item())
 
-            except:
+                except:
+                    conf_int_lower.append(numpy.nan)
+                    conf_int_upper.append(numpy.nan)
 
-                self.model_data["conf_int_lower"].append(numpy.nan)
-                self.model_data["conf_int_upper"].append(numpy.nan)
-
+        self.model_data["conf_int_lower"] = numpy.array(conf_int_lower)
+        self.model_data["conf_int_upper"] = numpy.array(conf_int_upper)
 
         ### T-stastics
-        self._test_stat_name = "t"
         self.model_data["test_stat"] = self.model_data["betas"] * (1 / self.model_data["standard_errors"])
         # Two-sided p-value
-        self.model_data["test_stat_p_values"] = numpy.array(
-                [float(scipy.stats.t.sf(numpy.abs(t), self.model_data["degrees_of_freedom_residual"]) * 2) for t in self.model_data["test_stat"]]
-                )
+        self.model_data["test_stat_p_values"] = numpy.array([
+            float((scipy.stats.t.sf(numpy.abs(t),self.model_data["degrees_of_freedom_residual"]) * 2).item()) for t in self.model_data["test_stat"]
+        ])
 
 
+    def results(self, return_type="Dataframe", pretty_format=True,
+                decimals={"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4, "CI": 2,
+                          "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
+                          'Degrees of Freedom': 1, 'Mean Squares': 4, 'Effect size': 4},
+                *args):
 
-    def results(self, return_type="Dataframe", pretty_format=True):
-
-        #descriptives, model_results, regression_table = super().table_regression_results(return_type=return_type, pretty_format=pretty_format)
-
-        return super().table_regression_results(return_type=return_type, pretty_format=pretty_format)
-
+        return self._table_regression_results(return_type=return_type, pretty_format=pretty_format, decimals=decimals)
 
     def predict(self, estimate=None):
         
