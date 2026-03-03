@@ -7,12 +7,12 @@ import patsy
 import pandas
 
 from researchpy.summary import summarize
-from researchpy.model import model
+from researchpy.model import core_model, linear_model
 from researchpy.utility import *
 from researchpy.predict import predict
 
 
-class lm(model):
+class lm(linear_model):
     """
 
     Parameters
@@ -68,30 +68,17 @@ class lm(model):
         self.model_data = {}
 
         ###########
+        # Creating the J matrix
+        J = self._j_matrix(add_to_model_data=False)
 
-        # J matrix of ones based on y
-        self.model_data["J"] = numpy.ones((self.nobs, self.nobs))
+        # Creating the identify matrix
+        I = self._identity_matrix(add_to_model_data=False)
 
-        # identity matrix (I) based on x
-        self.model_data["I"] = numpy.identity(self.nobs)
+        # Calculation of the Hat matrix
+        self._hat_matrix(add_to_model_data=True)
 
-        # Eigenvalues
-        self.eigvals = numpy.linalg.eigvals(self.IV.T @ self.IV)
-
-        # Hat matrix
-        try:
-            self.model_data["H"] = self.IV @ numpy.linalg.inv(
-                self.IV.T @ self.IV) @ self.IV.T
-        except:
-            self.model_data["H"] = self.IV @ numpy.linalg.pinv(
-                self.IV.T @ self.IV) @ self.IV.T
-            #print(f"NOTE: Using pseudo-inverse, smallest eigenvalue is {} ")
-
-        # Estimation of betas
-        try:
-            self.model_data["betas"] = numpy.linalg.inv((self.IV.T @ self.IV)) @ self.IV.T @ self.DV
-        except:
-            self.model_data["betas"] = numpy.linalg.pinv((self.IV.T @ self.IV)) @ self.IV.T @ self.DV
+        # OLS fit to calculate betas
+        self._core_model__ols_fit()
 
         # Predicted y values
         predicted_y = self.IV @ self.model_data["betas"]
@@ -101,10 +88,10 @@ class lm(model):
 
         ###  Sum of Squares
         # Total sum of squares (SSTO)
-        self.model_data["sum_of_square_total"] = float((self.DV.T @ self.DV - (1/self.nobs) * self.DV.T @ self.model_data["J"] @ self.DV).item())
+        self.model_data["sum_of_square_total"] = float((self.DV.T @ self.DV - (1/self.nobs) * self.DV.T @ J @ self.DV).item())
 
         # Model sum of squares (SSR)
-        self.model_data["sum_of_square_model"] = float((self.model_data["betas"].T @ self.IV.T @ self.DV - (1/self.nobs) * self.DV.T @ self.model_data["J"] @ self.DV).item())
+        self.model_data["sum_of_square_model"] = float((self.model_data["betas"].T @ self.IV.T @ self.DV - (1/self.nobs) * self.DV.T @ J @ self.DV).item())
 
         # Error sum of squares (SSE)
         self.model_data["sum_of_square_residual"] = float((residuals.T @ residuals).item())
@@ -150,7 +137,7 @@ class lm(model):
 
         ### Variance-covariance matrices
         # Non-robust - from Applied Linear Statistical Models, pg. 203
-        self.variance_covariance_residual_matrix = numpy.matrix(self.model_data["mse"] * (self.model_data["I"] - self.model_data["H"]))
+        self.variance_covariance_residual_matrix = numpy.matrix(self.model_data["mse"] * (I - self.model_data["H"]))
 
         try:
             self.variance_covariance_beta_matrix = numpy.matrix(

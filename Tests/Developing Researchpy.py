@@ -36,7 +36,7 @@ if not os.path.exists(systolic_local_path):
         raise Exception(f"Failed to download file: {response.status_code}")
 
 systolic = pd.read_stata(systolic_local_path)
-del url, systolic_local_path, f, headers, response
+del url, systolic_local_path, response
 
 # %%
 mdl = rp.model("admit ~ gre + gpa + C(rank)", data=pol)
@@ -53,6 +53,11 @@ desc, mod, table = mols.results()
 print(desc, mod, table, sep="\n" * 2)
 
 
+mols.IV.__dict__.values()
+
+mols.IV.design_info
+
+
 # %% ANOVA
 mano = rp.anova("systolic ~ C(drug) + C(disease) + C(drug):C(disease)", data=systolic, sum_of_squares=3)
 desc, table = mano.results()
@@ -62,6 +67,8 @@ print(desc, table, sep="\n" * 2)
 
 # %% LM regression
 mlm = rp.lm("systolic ~ C(drug) + C(disease) + C(drug):C(disease)", data=systolic)
+
+
 desc, mod, table = mlm.results()
 
 print(desc, mod, table, sep="\n" * 2)
