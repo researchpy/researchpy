@@ -12,8 +12,7 @@ import patsy
 import pandas
 
 from researchpy.summary import summarize
-from researchpy.ols import *
-#from .model import model
+from researchpy.MultivariableRegression.ols import ols
 from researchpy.utility import *
 
 
@@ -64,11 +63,12 @@ class anova(ols):
 
     """
 
+
     def __init__(self, formula_like, data={}, sum_of_squares=3):
         super().__init__(formula_like, data)
+        self.__name__ = "researchpy.anova"
 
         ###########
-
         factor_effects = {"Source": [],
                           "Sum of Squares": [],
                           "Degrees of Freedom": [],
@@ -274,20 +274,29 @@ class anova(ols):
 
                 
                 # Updating items
-                factor_effects["Source"].append(current_term)
-                factor_effects["Sum of Squares"].append(
-                    float(sum_of_square_factor))
-                factor_effects["Degrees of Freedom"].append(
-                    float(degrees_of_freedom_factor))
-                factor_effects["Mean Squares"].append(float(msr_f))
-                factor_effects["F value"].append(float(f_value_model))
-                factor_effects["p-value"].append(float(f_p_value_model))
+                try:
+                    factor_effects["Source"].append(current_term)
+                    factor_effects["Sum of Squares"].append(float(sum_of_square_factor))
+                    factor_effects["Degrees of Freedom"].append(float(degrees_of_freedom_factor))
+                    factor_effects["Mean Squares"].append(float(msr_f))
+                    factor_effects["F value"].append(float(f_value_model))
+                    factor_effects["p-value"].append(float(f_p_value_model))
 
-                factor_effects["Eta squared"].append(float(eta_squared_partial))
-                factor_effects["Epsilon squared"].append(float(epsilon_squared_partial))
-                factor_effects["Omega squared"].append(float(omega_squared_partial))
-                #factor_effects["r squared"].append("")
-                #factor_effects["r squared adj."].append("")
+                    factor_effects["Eta squared"].append(float(eta_squared_partial))
+                    factor_effects["Epsilon squared"].append(float(epsilon_squared_partial))
+                    factor_effects["Omega squared"].append(float(omega_squared_partial))
+
+                except:
+                    factor_effects["Source"].append(current_term)
+                    factor_effects["Sum of Squares"].append(float((sum_of_square_factor).item()))
+                    factor_effects["Degrees of Freedom"].append(float((degrees_of_freedom_factor).item()))
+                    factor_effects["Mean Squares"].append(float((msr_f).item()))
+                    factor_effects["F value"].append(float((f_value_model).item()))
+                    factor_effects["p-value"].append(float((f_p_value_model).item()))
+
+                    factor_effects["Eta squared"].append(float((eta_squared_partial).item()))
+                    factor_effects["Epsilon squared"].append(float((epsilon_squared_partial).item()))
+                    factor_effects["Omega squared"].append(float((omega_squared_partial).item()))
 
             self.factor_effects = factor_effects
 
@@ -341,94 +350,8 @@ class anova(ols):
             terms_design_info = []
             for term in x_full.design_info.term_names[1:]:
                 terms_design_info.append(x_full.design_info.subset(term))
-                
-                
-            
-          
-            """
-            ##for factor in patsy.build_design_matrices(terms_design_info, data):
-            for factor in the_terms_3:
-                
-                terms_in_model = the_terms_3[1:]
-                if factor.strip().upper() == 'INTERCEPT': 
-                    continue
-                else:
-                    terms_in_model.remove(factor)
-                    
-                    design_info2 = x_full.design_info.subset(terms_in_model)
-                    
-                    #x = numpy.asarray(factor)
-                    x = numpy.asarray(patsy.build_design_matrices(
-                    [design_info2], data))[0]
-                
-                    # Hat matrix
-                    h = x @ numpy.linalg.inv(x.T @ x) @ x.T
-
-                    # Predicted y values
-                    predicted_y = h @ self.DV
-
-                    # Calculation of residuals (error)
-                    residuals = self.DV - predicted_y
-
-                    ###  Error sum of squares (SSE)
-                    sum_of_square_residual = residuals.T @ residuals
-
-                    # Calculating the Factor Effect
-                    sum_of_square_factor = sum_of_square_residual - \
-                        self.model_data["sum_of_square_residual"]
-
-                    ### Degrees of freedom - Factor
-                    degrees_of_freedom_factor = numpy.linalg.matrix_rank(x) - 1
-                
-
-                    ### Mean Square - Factor (MSR-F)
-                    msr_f = sum_of_square_factor * (1 / degrees_of_freedom_factor)
-                
 
 
-                    ### F-values
-                    # Model
-                    f_value_model = msr_f / self.model_data["mse"]
-                    f_p_value_model = scipy.stats.f.sf(
-                    f_value_model, degrees_of_freedom_factor, self.model_data["degrees_of_freedom_residual"])
-
-                    
-                    ### Partial Effect Size Measures
-                    eta_squared_partial = sum_of_square_factor / \
-                        (sum_of_square_factor
-                         + self.model_data["sum_of_square_residual"])
-                    
-                    epsilon_squared_partial = (degrees_of_freedom_factor * (msr_f - self.model_data["mse"])) / \
-                        (sum_of_square_factor  + self.model_data["sum_of_square_total"])
-                    
-                    omega_squared_partial = (degrees_of_freedom_factor * (msr_f - self.model_data["mse"])) / \
-                        ((degrees_of_freedom_factor * msr_f) + (self.nobs - degrees_of_freedom_factor) * self.model_data["mse"])
-                
-
-                
-                    # Updating items
-                    factor_effects["Source"].append(factor.design_info.term_names[1])
-                    factor_effects["Sum of Squares"].append(float(sum_of_square_factor))
-                    factor_effects["Degrees of Freedom"].append(float(degrees_of_freedom_factor))
-                    factor_effects["Mean Squares"].append(float(msr_f))
-                    factor_effects["F value"].append(float(f_value_model))
-                    factor_effects["p-value"].append(float(f_p_value_model))
-
-                    factor_effects["Eta squared"].append(float(eta_squared_partial))
-                    factor_effects["Epsilon squared"].append(float(epsilon_squared_partial))
-                    factor_effects["Omega squared"].append(float(omega_squared_partial))
-                    #factor_effects["r squared"].append("")
-                    #factor_effects["r squared adj."].append("")
-
-                    self.factor_effects = factor_effects
-            
-            """
-            
-            
-            
-            
-            
-            
             for current_term in the_terms_3:
 
                 terms_in_model = []
@@ -523,18 +446,29 @@ class anova(ols):
 
                 
                 # Updating items
-                factor_effects["Source"].append(current_term)
-                factor_effects["Sum of Squares"].append(float(sum_of_square_factor))
-                factor_effects["Degrees of Freedom"].append(float(degrees_of_freedom_factor))
-                factor_effects["Mean Squares"].append(float(msr_f))
-                factor_effects["F value"].append(float(f_value_model))
-                factor_effects["p-value"].append(float(f_p_value_model))
+                try:
+                    factor_effects["Source"].append(current_term)
+                    factor_effects["Sum of Squares"].append(float(sum_of_square_factor))
+                    factor_effects["Degrees of Freedom"].append(float(degrees_of_freedom_factor))
+                    factor_effects["Mean Squares"].append(float(msr_f))
+                    factor_effects["F value"].append(float(f_value_model))
+                    factor_effects["p-value"].append(float(f_p_value_model))
 
-                factor_effects["Eta squared"].append(float(eta_squared_partial))
-                factor_effects["Epsilon squared"].append(float(epsilon_squared_partial))
-                factor_effects["Omega squared"].append(float(omega_squared_partial))
-                #factor_effects["r squared"].append("")
-                #factor_effects["r squared adj."].append("")
+                    factor_effects["Eta squared"].append(float(eta_squared_partial))
+                    factor_effects["Epsilon squared"].append(float(epsilon_squared_partial))
+                    factor_effects["Omega squared"].append(float(omega_squared_partial))
+
+                except:
+                    factor_effects["Source"].append(current_term)
+                    factor_effects["Sum of Squares"].append(float((sum_of_square_factor).item()))
+                    factor_effects["Degrees of Freedom"].append(float((degrees_of_freedom_factor).item()))
+                    factor_effects["Mean Squares"].append(float((msr_f).item()))
+                    factor_effects["F value"].append(float((f_value_model).item()))
+                    factor_effects["p-value"].append(float((f_p_value_model).item()))
+
+                    factor_effects["Eta squared"].append(float((eta_squared_partial).item()))
+                    factor_effects["Epsilon squared"].append(float((epsilon_squared_partial).item()))
+                    factor_effects["Omega squared"].append(float((omega_squared_partial).item()))
 
                 self.factor_effects = factor_effects
                 
@@ -673,9 +607,13 @@ class anova(ols):
             print(
                 "Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
 
-    def regression_table(self, return_type="Dataframe", decimals=4, pretty_format=True, conf_level=0.95):
+    def regression_table(self, return_type="Dataframe", pretty_format=True,
+                         decimals={"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4, "CI": 2,
+                                   "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
+                                   'Degrees of Freedom': 1, 'Mean Squares': 4, 'Effect size': 4},
+                         *args):
 
-        return super().results(return_type=return_type, decimals=decimals, pretty_format=pretty_format, conf_level=conf_level)[2]
+        return super().results(return_type=return_type, pretty_format=pretty_format, decimals=decimals)[2]
 
     def predict(self, estimate=None):
         return super().predict(estimate=estimate)

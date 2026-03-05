@@ -1,18 +1,18 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "researchpy"
-dynamic = ["version"]
-authors = [ { name="Corey Bryant", email="CoreyBryant10@gmail.com" }]
+version = "0.4.0"
+authors = [ { name="Corey Bryant", email="ResearchPy.Official@proton.me" }]
+maintainers = [ {name="Corey Bryant", email="ResearchPy.Official@proton.me" }]
 description = "Researchpy produces Pandas DataFrames that contain relevant statistical testing information that is commonly required for academic research."
 readme = "README.md"
-license = { file="LICENSE" }
+license = "MIT"
 requires-python = ">=3.7"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 keywords = ["researchpy", "statistics"]
@@ -20,4 +20,10 @@ dependencies = ['scipy', 'numpy', 'pandas', 'statsmodels', 'patsy']
 
 
 [project.urls]
-"Homepage" = "https://researchpy.readthedocs.io/"
+Homepage = "https://researchpy.readthedocs.io/"
+Documentation = "https://researchpy.readthedocs.io/"
+Repository = "https://github.com/researchpy/researchpy.git"
+
+[tool.setuptools]
+[tool.setuptools.packages.find]
+include = ["researchpy*"]
