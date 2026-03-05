@@ -36,7 +36,7 @@ if not os.path.exists(systolic_local_path):
         raise Exception(f"Failed to download file: {response.status_code}")
 
 systolic = pd.read_stata(systolic_local_path)
-del url, systolic_local_path, response
+del url, systolic_local_path
 
 # %%
 mdl = rp.model("admit ~ gre + gpa + C(rank)", data=pol)
@@ -48,7 +48,7 @@ m.results()
 
 # %% OLS regression
 mols = rp.ols("systolic ~ C(drug) + C(disease) + C(drug):C(disease)", data=systolic)
-desc, mod, table = mols.results()
+desc, mod, table = mols.results(pretty_format=False)
 
 print(desc, mod, table, sep="\n" * 2)
 
@@ -67,7 +67,7 @@ print(desc, table, sep="\n" * 2)
 
 # %% LM regression
 mlm = rp.lm("systolic ~ C(drug) + C(disease) + C(drug):C(disease)", data=systolic)
-
+mlm.results(pretty_format=False)
 
 desc, mod, table = mlm.results()
 

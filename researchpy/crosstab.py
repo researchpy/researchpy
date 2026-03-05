@@ -15,7 +15,7 @@ from statsmodels.stats import contingency_tables
 def crosstab(group1, group2, prop=None, test=False, margins=True,
              correction=None, cramer_correction=None, exact=False, expected_freqs=False):
 
-    if type(group1) != pd.core.series.Series or type(group2) != pd.core.series.Series:
+    if not isinstance(group1, pd.Series) or not isinstance(group2, pd.Series):
         return "Operation only supports Pandas Series"
 
     else:

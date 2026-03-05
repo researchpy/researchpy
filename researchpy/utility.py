@@ -16,6 +16,17 @@ def rounder(lst, decimals=4):
         idx += 1
 
 
+def return_numeric(value):
+    """
+    Ensures that a value is numeric, and if not, returns original value.
+    """
+
+    if isinstance(value, (np.float32, np.float64, np.int32, np.int64)):
+        return value.item()
+    else:
+        return value
+
+
 def patsy_column_cleaner(factor):
     """
 

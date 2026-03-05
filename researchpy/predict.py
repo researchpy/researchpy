@@ -28,6 +28,9 @@ def predict_y(mdl_data, trans=None):
         y_e = trans(mdl_data.IV @ mdl_data.model_data["betas"]) / \
               (1 + trans(mdl_data.IV @ mdl_data.model_data["betas"]))
 
+        # linear_pred mdl_data.IV @ mdl_data.model_data["betas"]
+        # y_e = 1 / (1 + np.exp(-linear_pred))
+
     return y_e
 
 
@@ -133,7 +136,7 @@ def leverage(mdl_data):
     return lev
 
 
-def predict(mdl_data={}, estimate=None, trans=None, decimals=4):
+def predict(mdl_data, estimate=None, trans=None, decimals=4):
     """
 
 

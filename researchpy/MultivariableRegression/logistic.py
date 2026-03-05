@@ -19,9 +19,15 @@ class logistic(general_model):
 
 
 
-    def __init__(self, formula_like, data={},
+    def __init__(self, formula_like, data=None,
                  solver_method="mle",
-                 solver_options={"algorithm": "newton-raphson", "tol": 1e-7, "max_iter": 300, "display": True}):
+                 solver_options=None):
+
+        if data is None:
+            data = {}
+
+        if solver_options is None:
+            solver_options = {"algorithm": "newton-raphson", "tol": 1e-7, "max_iter": 300, "display": True}
 
         self._test_stat_name = "z"
 
@@ -51,6 +57,11 @@ class logistic(general_model):
             p = 1 / (1 + np.exp(-linear_pred))
 
             # Hessian and Gradient
+            """
+            Building W as a full n x n diagonal matrix (np.diagflat(p * (1 - p))) makes Newton-Raphson iterations O(n^2) 
+            memory/time and will not scale. You can compute the Hessian as -(X.T * w) @ X (where w = p*(1-p) broadcast 
+            across columns) without materializing W.
+            """
             W = np.diagflat(p * (1 - p))
             H = -(self.IV.T @ W @ self.IV)
             G = self.IV.T @ (self.DV - p)
@@ -84,9 +95,20 @@ class logistic(general_model):
             cov_matrix = np.linalg.inv(self.IV.T @ W @ self.IV)
         except np.linalg.LinAlgError:
             cov_matrix = np.linalg.pinv(self.IV.T @ W @ self.IV)
+        """
+        The same dense-diagonal approach is repeated when computing the covariance matrix (`W = np.diagflat(...)`). 
+        This has the same O(n^2) scaling issue; consider reusing the vector-weighted formulation instead of building `W`.
+        
+        Suggestion:
+        w = (p * (1 - p)).reshape(-1, 1)
+        X_w = self.IV * w
+        try:
+            cov_matrix = np.linalg.inv(self.IV.T @ X_w)
+        except np.linalg.LinAlgError:
+            cov_matrix = np.linalg.pinv(self.IV.T @ X_w)
+        """
 
         self.model_data["standard_errors"] = np.sqrt(np.diag(cov_matrix)).reshape(-1, 1)
-        #self.model_data["standard_errors"] = np.array(self.model_data["standard_errors"])
 
         # Wald z-statistics and p-values
         self.model_data["test_stat"] = self.model_data["betas"] / self.model_data["standard_errors"]

@@ -25,4 +25,5 @@ Documentation = "https://researchpy.readthedocs.io/"
 Repository = "https://github.com/researchpy/researchpy.git"
 
 [tool.setuptools]
-packages = ["researchpy"]
+[tool.setuptools.packages.find]
+include = ["researchpy*"]
