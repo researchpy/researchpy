@@ -45,21 +45,20 @@ def corr_case(dataframe, method = "pearson"):
     # Rounding values for the r and p value dataframes 
     for r in df.columns:
         for c in df.columns:
-            r_vals[r][c] = round(test(df[r], df[c])[0], 4)
+            r_vals.loc[r, c] = round(test(df[r], df[c])[0], 4)
        
     for r in df.columns:
         for c in df.columns:
-            p_vals[r][c] = format(test(df[r], df[c])[1], '.4f')
+            p_vals.loc[r, c] = format(test(df[r], df[c])[1], '.4f')
             
             
     # Getting the testing information dataframe ready
-    info = pandas.DataFrame(numpy.zeros(shape= (1,1)), 
-                         columns = [f"{test_name} correlation test using list-wise deletion"])
-    
+    info = pandas.DataFrame(numpy.zeros(shape= (1,1)),
+                            columns = [f"{test_name} correlation test using list-wise deletion"],
+                            dtype=object)
     info.iloc[0,0] = f"Total observations used = {length}"
           
-    
-    
+
     return info, r_vals, p_vals
 
 
