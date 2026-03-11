@@ -2,9 +2,9 @@
 import numpy as np
 import scipy.stats
 import patsy
-import pandas
+import pandas as pd
 
-from researchpy.model import model, general_model
+from researchpy.model import general_model
 from researchpy.utility import *
 from researchpy.predict import predict
 from researchpy.objective_functions import likelihood
@@ -14,7 +14,9 @@ from researchpy.objective_functions import likelihood
 
 class logistic(general_model):
     """
+
     Logistic regression using Newton-Raphson for MLE.
+
     """
 
 
@@ -22,6 +24,8 @@ class logistic(general_model):
     def __init__(self, formula_like, data=None,
                  solver_method="mle",
                  solver_options=None):
+
+        self.__name__ = "researchpy.Logistic"
 
         if data is None:
             data = {}
@@ -34,8 +38,6 @@ class logistic(general_model):
         super().__init__(formula_like, data, matrix_type=1,
                          solver_method=solver_method, solver_options=solver_options,
                          family="binomial", link="logit", obj_function="log-likelihood")
-
-        self.__name__ = "researchpy.Logistic"
 
         self.model_data = {}
 
@@ -85,8 +87,6 @@ class logistic(general_model):
 
         self.n, self.k = self.IV.shape
 
-        #self.model_data["betas"] = np.array(self.model_data["betas"])
-
         # Standard errors
         linear_pred = self.IV @ self.model_data["betas"]
         p = 1 / (1 + np.exp(-linear_pred))
@@ -132,4 +132,3 @@ class logistic(general_model):
                 *args):
 
         return self._table_regression_results(return_type=return_type, pretty_format=pretty_format, decimals=decimals)
-

@@ -5,7 +5,6 @@ import scipy.stats
 import patsy
 import pandas as pd
 
-from .summary import summarize
 from .utility import *
 from .predict import predict
 from .objective_functions import likelihood
@@ -297,8 +296,11 @@ class core_model():
 class model():
     """
 
-    This is the base -model- object for Researchpy. By default, missing
-    observations are dropped from the data. -matrix_type- parameter determines
+    This is the deprecated base -model- object for Researchpy, replaced by core_model, and will be maintained for
+    the next few versions for legacy support. Ample time will be provided as well as notifications. The change should
+    have no impact on user's existing code and use cases.
+
+    By default, missing observations are dropped from the data. -matrix_type- parameter determines
     which design matrix will be returned; value of 1 will return a design matrix
     with the intercept, while a value of 0 will not.
 
@@ -622,10 +624,7 @@ class model():
 class linear_model(core_model):
     """
 
-    This is the base -model- object for Researchpy. By default, missing
-    observations are dropped from the data. -matrix_type- parameter determines
-    which design matrix will be returned; value of 1 will return a design matrix
-    with the intercept, while a value of 0 will not.
+    This is a subclass of core_model for linear statistical models that use ordinary least squares.
 
     """
 
@@ -775,36 +774,12 @@ class linear_model(core_model):
 
 
 
-class general_model():
+class general_model(core_model):
     """
 
-    This is the base -model- object for Researchpy. By default, missing
-    observations are dropped from the data. -matrix_type- parameter determines
-    which design matrix will be returned; value of 1 will return a design matrix
-    with the intercept, while a value of 0 will not.
+    This is a subclass of core_model for generalized statistical models such as logistic, poisson, and etc.
 
     """
-
-    @property
-    def CI_LEVEL(self):
-        return self._CI_LEVEL
-    @CI_LEVEL.setter
-    def CI_LEVEL(self, conf_level):
-        self._CI_LEVEL = float(conf_level)
-
-    @property
-    def conf_level(self):
-        return self._CI_LEVEL
-    @conf_level.setter
-    def conf_level(self, conf_level):
-        self._CI_LEVEL = float(conf_level)
-
-    @property
-    def obj_function(self):
-        return self._obj_function
-    @obj_function.setter
-    def obj_function(self, obj_function):
-        self._obj_function = obj_function
 
     def __init__(self, formula_like, data={}, matrix_type=1, conf_level=0.95,
                  family="gaussian", link="normal",
@@ -814,52 +789,8 @@ class general_model():
 
         self.__name__ = "researchpy.general_model"
 
-        # matrix_type = 1 includes intercept; matrix_type = 0 does not include the intercept
-        if matrix_type == 1:
-            self.DV, self.IV = patsy.dmatrices(formula_like, data, 1)
-        if matrix_type == 0:
-            self.DV, self.IV = patsy.dmatrices(formula_like + "- 1", data, 1)
-
-        # Dictionary for storing model results and information. This will be populated by specific regression model
-        # classes that inherit from this base class.
-        self.model_data = {}
-
-        self.solver_options = solver_options
-        self.obj_function = obj_function
-        self.CI_LEVEL = conf_level
-        self.conf_level = conf_level
-        self.nobs = self.IV.shape[0]
-        self.n, self.k = self.IV.shape
-
-        # Model design information
-        self.formula = formula_like
-        self._DV_design_info = self.DV.design_info
-        self._IV_design_info = self.IV.design_info
-        if not hasattr(self, "_test_stat_name"):
-            self._test_stat_name = "t" if family == "gaussian" else "z"
-        self._family = family
-        self._link = link
-        self._CI_LEVEL = conf_level
-        self._solver = {"method": solver_method,
-                        "obj_function": obj_function,
-                        "algorithm": solver_options.get("algorithm", None),
-                        "tol": solver_options.get("tol", None),
-                        "max_iter": solver_options.get("max_iter", None),
-                        "display": solver_options.get("display", True)}
-
-        ## My design information ##
-        self.DV_name = self.DV.design_info.term_names[0]
-        self._patsy_factor_information, self._mapping, self._rp_factor_information = variable_information(self.IV.design_info.term_names,
-                                                                                                          self.IV.design_info.column_names,
-                                                                                                          data)
-
-        ## Creating variable table information
-        self.regression_table_info = {self.DV_name: [],
-                                      "Coef.": [],
-                                      "Std. Err.": [],
-                                      f"{self._test_stat_name}": [],
-                                      "p-value": [],
-                                      f"{int(self.CI_LEVEL * 100)}% Conf. Interval": []}
+        super().__init__(formula_like=formula_like, data=data, matrix_type=matrix_type, conf_level=conf_level,
+                         family=family, link=link, solver_method=solver_method, obj_function=obj_function)
 
 
     def predict(self, estimate=None, trans=None):
@@ -875,73 +806,8 @@ class general_model():
 
 
     def _regression_base_table(self):
-        dv = list(self.regression_table_info)[0]
 
-        # Creating the first table #
-        terms = (pd.DataFrame.from_dict(self._patsy_factor_information, orient="index")).reset_index()
-        terms.columns = ["term", "term_cleaned"]
-        terms["intx"] = [1 if ":" in t else 0 for t in list(self._patsy_factor_information.keys())]
-        terms["factor"] = [1 if "C(" in t else 0 for t in list(self._patsy_factor_information.keys())]
-
-        # Creating the second table #
-        term_levels = {"term_cleaned"      : [],
-                       "term_level_cleaned": []}
-
-        for key in self._rp_factor_information.keys():
-
-            count = 1
-
-            if key == 'Intercept' or terms[terms.term_cleaned == key].factor.item() == 0:
-                term_levels["term_cleaned"].append(key)
-                term_levels["term_level_cleaned"].append(self._rp_factor_information[key])
-
-            else:
-                for value in self._rp_factor_information[key]:
-
-                    term_levels["term_cleaned"].append(key)
-
-                    if count == 1:
-
-                        term_levels["term_cleaned"].append(key)
-                        term_levels["term_level_cleaned"].append(key)
-                        term_levels["term_level_cleaned"].append(value)
-
-                        count += 1
-                    else:
-                        term_levels["term_level_cleaned"].append(value)
-
-        # Creating the third table #
-        current_terms = (pd.DataFrame.from_dict(self._mapping, orient="index")).reset_index()
-        current_terms.columns = [dv, "term_level_cleaned"]
-        current_terms["term_cleaned"] = [patsy_term_cleaner(key) for key in self._mapping.keys()]
-
-        # Joining the tables together #
-        table = pd.merge(terms, pd.DataFrame.from_dict(term_levels),
-                         how="left", on="term_cleaned")
-
-        table = pd.merge(table, current_terms,
-                         how="left", on=["term_cleaned", "term_level_cleaned"])
-
-        table = pd.merge(table, pd.DataFrame.from_dict(self.regression_table_info),
-                         how="left", on=dv)
-
-        # Cleaning up final table #
-        table[dv] = table["term_level_cleaned"]
-        table["Coef."] = table["Coef."].astype(object)
-
-        for idx in table.index:
-            if pd.isnull(table.iloc[idx, 6]) and table.iloc[idx][dv] not in list(self._rp_factor_information.keys())[1:]:
-                table.iloc[idx, 6] = "(reference)"
-                table.iloc[idx, 7:] = np.nan
-
-            else:
-                if table.iloc[idx][dv] in list(self._rp_factor_information.keys())[1:] and pd.isnull(table.iloc[idx, 6]):
-                    table.iloc[idx, 6:] = np.nan
-
-        table = table[(table.intx == 0) |
-                      ((table.intx == 1) & (table.iloc[:, 6] != "(reference)"))]
-
-        return table.iloc[:, 5:]
+        self._core_model__regression_base_table()
 
 
     def _table_regression_results(self, return_type="Dataframe", decimals={"Coef.": 2,
@@ -959,36 +825,10 @@ class general_model():
                                                                           },
                                  pretty_format=True, *args):
 
-        base_decimals = {"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4, "CI": 2,
-                         "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
-                         'Degrees of Freedom': 1,  'Mean Squares': 4, 'Effect size': 4}
-        decimals = base_decimals | decimals
-
-        try:
-            self.regression_table_info[self._DV_design_info.term_names[0]] = self._IV_design_info.column_names
-            self.regression_table_info["Coef."] = np.round(self.model_data["betas"].flatten(), decimals["Coef."]).tolist()
-            self.regression_table_info["Std. Err."] = np.round(self.model_data["standard_errors"].flatten(), decimals["Std. Err."]).tolist()
-            self.regression_table_info[f"{self._test_stat_name}"] = np.round(self.model_data["test_stat"].flatten(), decimals["test_stat"]).tolist()
-            self.regression_table_info["p-value"] = np.round(self.model_data["test_stat_p_values"].flatten(), decimals["test_stat_p"]).tolist()
-            self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"] = [list(x) for x in np.round(np.hstack((self.model_data["conf_int_lower"].flatten().reshape(-1, 1),
-                                                                                                                              self.model_data["conf_int_upper"].flatten().reshape(-1, 1))), decimals["CI"]).tolist()]
-
-        except:
-            for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names,
-                                                              self.model_data["betas"], self.model_data["standard_errors"],
-                                                              self.model_data["test_stat"], self.model_data["test_stat_p_values"],
-                                                              self.model_data["conf_int_lower"], self.model_data["conf_int_upper"]):
-
-                self.regression_table_info[self._DV_design_info.term_names[0]].append(column)
-                self.regression_table_info["Coef."].append(round(beta.item(), decimals["Coef."]))
-                self.regression_table_info["Std. Err."].append(round(stderr.item(), decimals["Std. Err."]))
-                self.regression_table_info[f"{self._test_stat_name}"].append(round(t.item(), decimals["test_stat"]))
-                self.regression_table_info["p-value"].append(round(p.item(), decimals["test_stat_p"]))
-                self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci.item(), decimals["CI"]),
-                                                                                                  round(u_ci.item(), decimals["CI"])])
+        self._core_model__table_regression_results(return_type=return_type, pretty_format=pretty_format, decimals=decimals)
 
         if return_type == "Dataframe":
-            return self._regression_base_table()
+            return self._core_model__regression_base_table()
 
         elif return_type == "Dictionary":
             return self.regression_table_info
