@@ -16,6 +16,7 @@ from .MultivariableRegression.ols import ols
 from .MultivariableRegression.lm import lm
 from .MultivariableRegression.anova import anova
 from .MultivariableRegression.logistic import logistic
+from .MultivariableRegression.logit import logit
 
 
 

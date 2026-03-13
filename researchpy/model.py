@@ -781,16 +781,22 @@ class general_model(core_model):
 
     """
 
-    def __init__(self, formula_like, data={}, matrix_type=1, conf_level=0.95,
+    def __init__(self, formula_like, data=None, matrix_type=1, conf_level=0.95,
                  family="gaussian", link="normal",
                  solver_method="mle",
                  obj_function="log-likelihood",
-                 solver_options={"algorithm": "newton-raphson", "tol": 1e-7, "max_iter": 300, "display": True}):
+                 solver_options=None):
 
         self.__name__ = "researchpy.general_model"
 
+        if data is None:
+            data = {}
+        if solver_options is None:
+            solver_options = {"algorithm": "newton-raphson", "tol": 1e-7, "max_iter": 300, "display": True}
+
+
         super().__init__(formula_like=formula_like, data=data, matrix_type=matrix_type, conf_level=conf_level,
-                         family=family, link=link, solver_method=solver_method, obj_function=obj_function)
+                         family=family, link=link, solver_options=solver_options, solver_method=solver_method, obj_function=obj_function)
 
 
     def predict(self, estimate=None, trans=None):
@@ -810,19 +816,11 @@ class general_model(core_model):
         self._core_model__regression_base_table()
 
 
-    def _table_regression_results(self, return_type="Dataframe", decimals={"Coef.": 2,
-                                                                          "Std. Err.": 4,
-                                                                          "test_stat": 4,
-                                                                          "test_stat_p": 4,
-                                                                          "CI": 2,
-                                                                          "Root MSE": 4,
-                                                                          "R-squared": 4,
-                                                                          "Adj R-squared": 4,
-                                                                          "Sum of Squares": 4,
-                                                                          'Degrees of Freedom': 1,
-                                                                          'Mean Squares': 4,
-                                                                          'Effect size': 4
-                                                                          },
+    def _table_regression_results(self, report=None, return_type="Dataframe",
+                                  decimals={"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4,
+                                            "CI": 2, "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4,
+                                            "Sum of Squares": 4, 'Degrees of Freedom': 1,
+                                            'Mean Squares': 4, 'Effect size': 4  },
                                  pretty_format=True, *args):
 
         self._core_model__table_regression_results(return_type=return_type, pretty_format=pretty_format, decimals=decimals)

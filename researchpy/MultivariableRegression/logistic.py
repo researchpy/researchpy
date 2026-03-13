@@ -41,7 +41,10 @@ class logistic(general_model):
 
         self.model_data = {}
 
+        self.n, self.k = self.IV.shape
+
         # Initialize betas with OLS
+        #self.model_data["betas"] = np.zeros((self.n, self.k))
         try:
             self.model_data["betas"] = np.linalg.inv(self.IV.T @ self.IV) @ self.IV.T @ self.DV
         except:
@@ -58,15 +61,10 @@ class logistic(general_model):
             linear_pred = self.IV @ self.model_data["betas"]
             p = 1 / (1 + np.exp(-linear_pred))
 
-            # Hessian and Gradient
-            """
-            Building W as a full n x n diagonal matrix (np.diagflat(p * (1 - p))) makes Newton-Raphson iterations O(n^2) 
-            memory/time and will not scale. You can compute the Hessian as -(X.T * w) @ X (where w = p*(1-p) broadcast 
-            across columns) without materializing W.
-            """
-            W = np.diagflat(p * (1 - p))
-            H = -(self.IV.T @ W @ self.IV)
-            G = self.IV.T @ (self.DV - p)
+            # Hessian (H) and Gradient (G)
+            w = p * (1 - p).reshape(-1, 1)
+            H = -(self.IV.T @ (self.IV * w))    # This is equivalent to -X.T @ W @ X without building W
+            G = self.IV.T @ (self.DV - p)       # Shape: (k,)
 
             # Update betas
             try:
@@ -85,28 +83,18 @@ class logistic(general_model):
             if self.solver_options["display"]:
                 print(f"Iteration {it}: Bernoulli Log-likelihood = {ll}")
 
-        self.n, self.k = self.IV.shape
 
         # Standard errors
         linear_pred = self.IV @ self.model_data["betas"]
         p = 1 / (1 + np.exp(-linear_pred))
-        W = np.diagflat(p * (1 - p))
-        try:
-            cov_matrix = np.linalg.inv(self.IV.T @ W @ self.IV)
-        except np.linalg.LinAlgError:
-            cov_matrix = np.linalg.pinv(self.IV.T @ W @ self.IV)
-        """
-        The same dense-diagonal approach is repeated when computing the covariance matrix (`W = np.diagflat(...)`). 
-        This has the same O(n^2) scaling issue; consider reusing the vector-weighted formulation instead of building `W`.
-        
-        Suggestion:
-        w = (p * (1 - p)).reshape(-1, 1)
+        w = p * (1 - p).reshape(-1, 1)
         X_w = self.IV * w
+
+        # Covariance matrix
         try:
             cov_matrix = np.linalg.inv(self.IV.T @ X_w)
         except np.linalg.LinAlgError:
             cov_matrix = np.linalg.pinv(self.IV.T @ X_w)
-        """
 
         self.model_data["standard_errors"] = np.sqrt(np.diag(cov_matrix)).reshape(-1, 1)
 
@@ -115,8 +103,27 @@ class logistic(general_model):
         self.model_data["test_stat_p_values"] = 2 * scipy.stats.norm.sf(np.abs(self.model_data["test_stat"]))
 
         # Confidence intervals
-        self.model_data["conf_int_lower"] = self.model_data["betas"] - 1.96 * self.model_data["standard_errors"]
-        self.model_data["conf_int_upper"] = self.model_data["betas"] + 1.96 * self.model_data["standard_errors"]
+        conf_int_lower = []
+        conf_int_upper = []
+
+        for beta, se in zip(self.model_data["betas"], self.model_data["standard_errors"]):
+
+            try:
+                lower, upper = scipy.stats.norm.interval(self._CI_LEVEL, loc=beta, scale=se)
+                conf_int_lower.append(float(lower))
+                conf_int_upper.append(float(upper))
+
+            except TypeError:
+                try:
+                    conf_int_lower.append(lower.item())
+                    conf_int_upper.append(upper.item())
+
+                except:
+                    conf_int_lower.append(np.nan)
+                    conf_int_upper.append(np.nan)
+
+        self.model_data["conf_int_lower"] = np.array(conf_int_lower)
+        self.model_data["conf_int_upper"] = np.array(conf_int_upper)
 
 
 
@@ -125,10 +132,19 @@ class logistic(general_model):
         return 1 / (1 + np.exp(-linear_pred))
 
 
-    def results(self, return_type="Dataframe", pretty_format=True,
+    def results(self, report="or", return_type="Dataframe", pretty_format=True,
                 decimals={"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4, "CI": 2,
                           "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
                           'Degrees of Freedom': 1, 'Mean Squares': 4, 'Effect size': 4},
                 *args):
 
-        return self._table_regression_results(return_type=return_type, pretty_format=pretty_format, decimals=decimals)
+        if report.lower() in ["or", "odds ratio"]:
+            self.model_data["betas"] = np.exp(self.model_data["betas"])
+            self.model_data["conf_int_lower"] = np.exp(self.model_data["conf_int_lower"])
+            self.model_data["conf_int_upper"] = np.exp(self.model_data["conf_int_upper"])
+
+            table = self._table_regression_results(return_type=return_type, pretty_format=pretty_format, decimals=decimals)
+            return table.rename(columns={"Coef.": "Odds Ratio"})
+
+        else:
+            return self._table_regression_results(return_type=return_type, pretty_format=pretty_format, decimals=decimals)
