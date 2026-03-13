@@ -44,3 +44,4 @@ def newton_raphson(IV, DV, betas, tol, max_iter, display):
         print(f"Newton-Raphson completed in {it} iterations")
 
     return betas, logL
+
