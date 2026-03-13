@@ -10,6 +10,7 @@ from .predict import predict
 from .objective_functions import likelihood
 
 
+from researchpy.optimize.iterative_algorithms import scipy_minimize, newton_raphson
 
 
 # Base model class for regression models. This class is not meant to be used directly, but rather to be inherited by
@@ -52,6 +53,8 @@ class core_model():
                  solver_options=None):
 
         self.__name__ = "researchpy.core_model"
+
+        self._beta_type = "coef"
 
         if data is None:
             data = {}
@@ -161,6 +164,34 @@ class core_model():
             except:
                 betas = np.linalg.pinv((np.asarray(self.IV.T) @ np.asarray(self.IV))) @ np.asarray(self.IV.T) @ np.asarray(self.DV)
             return betas
+
+
+
+    def __compute_confidence_intervals(self, add_to_model_data=True):
+        conf_int_lower = []
+        conf_int_upper = []
+
+        for beta, se in zip(self.model_data["betas"], self.model_data["standard_errors"]):
+
+            try:
+                lower, upper = scipy.stats.norm.interval(self._CI_LEVEL, loc=beta, scale=se)
+                conf_int_lower.append(float(lower))
+                conf_int_upper.append(float(upper))
+
+            except TypeError:
+                try:
+                    conf_int_lower.append(lower.item())
+                    conf_int_upper.append(upper.item())
+
+                except:
+                    conf_int_lower.append(np.nan)
+                    conf_int_upper.append(np.nan)
+
+        if add_to_model_data:
+            self.model_data["conf_int_lower"] = np.array(conf_int_lower)
+            self.model_data["conf_int_upper"] = np.array(conf_int_upper)
+        else:
+            return np.array(conf_int_lower), np.array(conf_int_upper)
 
 
     def predict(self, estimate=None, trans=None):
@@ -797,6 +828,94 @@ class general_model(core_model):
 
         super().__init__(formula_like=formula_like, data=data, matrix_type=matrix_type, conf_level=conf_level,
                          family=family, link=link, solver_options=solver_options, solver_method=solver_method, obj_function=obj_function)
+
+
+
+    def __initialize_betas(self, initial_betas=None, initial_betas_method=None):
+
+        if initial_betas is not None and initial_betas_method is not None:
+            return("Warning: Both initial_betas and initial_betas_method were provided. Ignoring initial_betas_method and using provided initial_betas.")
+
+        if initial_betas is not None:
+            if isinstance(initial_betas, np.ndarray) and initial_betas.shape == (self.k, 1):
+                self.model_data["betas"] = initial_betas
+            else:
+                raise ValueError(f"initial_betas must be a numpy array of shape ({self.k}, 1), but got {initial_betas.shape}")
+
+        elif initial_betas_method.lower() == "ols":
+            self._core_model__ols_fit()
+
+        # Default initialization based on model type
+        else:
+            if self.__name__ in ["researchpy.Logistic", "researchpy.Logit"]:
+                """Initialize betas with smarter starting values."""
+                # Start with zeros (better than OLS for binary outcomes)
+                betas = np.ones((self.n, self.k))
+
+                # Set intercept to log odds of outcome proportion
+                y_mean = np.mean(self.DV)
+                if 0 < y_mean < 1:
+                    betas[0] = np.log(y_mean / (1 - y_mean))
+
+                self.model_data["betas"] = betas.reshape(-1, 1)
+
+
+
+    def __fit_model(self):
+        """Fit the model using scipy.optimize with fallback."""
+        self.logL = []
+        converged = False
+
+        # Try scipy.optimize first
+        try:
+            if self.solver_options["display"]:
+                print(f"Starting optimization with {self.solver_options['algorithm']}...")
+
+            result = scipy_minimize(
+                fun=self._neg_log_likelihood,
+                x0=self.model_data["betas"].flatten(),
+                jac=self._gradient_neg_log_likelihood,
+                method=self.solver_options["algorithm"],
+                options={
+                    'maxiter': self.solver_options["max_iter"],
+                    'disp': self.solver_options["display"],
+                    'gtol': self.solver_options["tol"]
+                }
+            )
+
+            if result.success:
+                self.model_data["betas"] = result.x.reshape(-1, 1)
+                self.logL.append(-result.fun)
+                converged = True
+
+                if self.solver_options["display"]:
+                    print(f"Optimization converged in {result.nit} iterations")
+                    print(f"Final log-likelihood: {-result.fun:.4f}")
+            else:
+                if self.solver_options["display"]:
+                    print(f"Warning: scipy optimization did not converge ({result.message})")
+                    print("Falling back to Newton-Raphson...")
+
+        except Exception as e:
+            if self.solver_options["display"]:
+                print(f"scipy.optimize failed: {e}")
+                print("Falling back to Newton-Raphson...")
+
+        # Fallback to Newton-Raphson if scipy failed
+        if not converged:
+            self.model_data["betas"], self.logL = newton_raphson(
+                IV=self.IV,
+                DV=self.DV,
+                betas=self.model_data["betas"],
+                tol=self.solver_options["tol"],
+                max_iter=self.solver_options["max_iter"],
+                display=self.solver_options["display"]
+            )
+
+
+
+
+
 
 
     def predict(self, estimate=None, trans=None):
