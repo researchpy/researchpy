@@ -8,7 +8,7 @@ import pandas as pd
 from .utility import *
 from .predict import predict
 from .objective_functions import likelihood
-from researchpy.objective_functions.likelihood import neg_log_likelihood, gradient_neg_log_likelihood
+from researchpy.objective_functions.likelihood import neg_log_likelihood, gradient_neg_log_likelihood, LikelihoodTracker
 
 from researchpy.optimize.iterative_algorithms import scipy_minimize, newton_raphson
 
@@ -864,13 +864,20 @@ class general_model(core_model):
 
     def _neg_log_likelihood(self, params, *args, **kwargs):
         """Negative log-likelihood function for scipy.optimize."""
+        tracker = kwargs.pop('tracker', None)
+
+        # Ensure tracker is passed correctly
+        if tracker is None:
+            tracker = LikelihoodTracker()
+
         return neg_log_likelihood(
             params=params,
             IV=self.IV,
             DV=self.DV,
             solver_options=self.solver_options,
             distribution_family=self._family,
-            link_function=self._link
+            link_function=self._link,
+            tracker=tracker
         )
 
     def _gradient_neg_log_likelihood(self, params):
@@ -903,7 +910,8 @@ class general_model(core_model):
                 options={
                     'maxiter': self.solver_options["max_iter"],
                     'disp': self.solver_options["display"],
-                    'gtol': self.solver_options["tol"]
+                    'gtol': self.solver_options["tol"],
+                    'return_all': self.solver_options["display"]
                 },
             )
 
@@ -936,8 +944,10 @@ class general_model(core_model):
                 display=self.solver_options["display"]
             )
 
-
-
+        # Print log-likelihood values for each iteration
+        if self.solver_options["display"]:
+            for i, log_likelihood in enumerate(self.logL, start=1):
+                print(f"Iteration {i}: Log-Likelihood = {log_likelihood:.4f}")
 
 
 
