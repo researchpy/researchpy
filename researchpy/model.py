@@ -1,4 +1,3 @@
-
 # Used
 import numpy as np
 import scipy.stats
@@ -9,10 +8,9 @@ import pandas as pd
 from .utility import *
 from .predict import predict
 from .objective_functions import likelihood
-
+from researchpy.objective_functions.likelihood import neg_log_likelihood, gradient_neg_log_likelihood
 
 from researchpy.optimize.iterative_algorithms import scipy_minimize, newton_raphson
-#from researchpy.objective_functions.likelihood import neg_log_likelihood, gradient_neg_log_likelihood
 
 
 # Base model class for regression models. This class is not meant to be used directly, but rather to be inherited by
@@ -550,8 +548,7 @@ class model():
                     self.regression_table_info["p-value"].append(round(p.item(), decimals["test_stat_p"]))
                     self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci, decimals["CI"]),
                                                                                                       round(u_ci, decimals["CI"])])
-
-
+        # Copilot always wants to delete this LoL
         if pretty_format == True:
 
             descriptives = {
@@ -638,7 +635,7 @@ class model():
                     "F value": top["F value"] + bottom["F value"],
                     "p-value": top["p-value"] + bottom["p-value"]
                     }
-        
+
 
         if return_type == "Dataframe":
             descriptives = pd.DataFrame.from_dict(descriptives, orient="index")
@@ -806,7 +803,6 @@ class linear_model(core_model):
 
 
 
-
 class general_model(core_model):
     """
 
@@ -826,6 +822,9 @@ class general_model(core_model):
             data = {}
         if solver_options is None:
             solver_options = {"algorithm": "newton-raphson", "tol": 1e-7, "max_iter": 300, "display": True}
+
+        #base_solver_options = {"tol": 1e-7, "max_iter": 300, "display": True}
+        #self.solver_options = base_solver_options | solver_options
 
 
         super().__init__(formula_like=formula_like, data=data, matrix_type=matrix_type, conf_level=conf_level,
@@ -863,53 +862,27 @@ class general_model(core_model):
 
 
 
-    def _neg_log_likelihood(self, params):
+    def _neg_log_likelihood(self, params, *args, **kwargs):
         """Negative log-likelihood function for scipy.optimize."""
-        params = params.reshape(-1, 1)  # Ensure params is a column vector
-        linear_pred = self.IV @ params
-        p = expit(linear_pred)  # Numerically stable sigmoid
-
-        # Clip to avoid log(0)
-        eps = 1e-15
-        p = np.clip(p, eps, 1 - eps)
-
-        ll = -np.sum(self.DV * np.log(p) + (1 - self.DV) * np.log(1 - p))
-
-        # Add regularization if specified
-        if self.solver_options.get("regularization") == "l2":
-            alpha = self.solver_options.get("alpha", 0.0)
-            # Don't regularize intercept (first coefficient)
-            ll += alpha * np.sum(params[1:] ** 2)
-
-        elif self.solver_options.get("regularization") == "l1":
-            alpha = self.solver_options.get("alpha", 0.0)
-            ll += alpha * np.sum(np.abs(params[1:]))
-
-        return ll
+        return neg_log_likelihood(
+            params=params,
+            IV=self.IV,
+            DV=self.DV,
+            solver_options=self.solver_options,
+            distribution_family=self._family,
+            link_function=self._link
+        )
 
     def _gradient_neg_log_likelihood(self, params):
         """Gradient of negative log-likelihood."""
-        params = params.reshape(-1, 1)  # Ensure params is a column vector
-        linear_pred = self.IV @ params
-        p = expit(linear_pred)
-
-        grad = -self.IV.T @ (self.DV - p)
-
-        # Add regularization gradient if specified
-        if self.solver_options.get("regularization") == "l2":
-            alpha = self.solver_options.get("alpha", 0.0)
-            reg_grad = np.zeros_like(params)
-            reg_grad[1:] = 2 * alpha * params[1:]  # Don't regularize intercept
-            grad += reg_grad
-
-        elif self.solver_options.get("regularization") == "l1":
-            alpha = self.solver_options.get("alpha", 0.0)
-            reg_grad = np.zeros_like(params)
-            reg_grad[1:] = alpha * np.sign(params[1:])
-            grad += reg_grad
-
-        return grad.flatten()  # Return flattened gradient for scipy.optimize
-
+        return gradient_neg_log_likelihood(
+            params=params,
+            IV=self.IV,
+            DV=self.DV,
+            solver_options=self.solver_options,
+            distribution_family=self._family,
+            link_function=self._link
+        )
 
 
     def __fit_model(self):
@@ -931,7 +904,7 @@ class general_model(core_model):
                     'maxiter': self.solver_options["max_iter"],
                     'disp': self.solver_options["display"],
                     'gtol': self.solver_options["tol"]
-                }
+                },
             )
 
             if result.success:

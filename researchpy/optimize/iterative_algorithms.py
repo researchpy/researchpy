@@ -1,12 +1,30 @@
 import numpy as np
 from scipy.special import expit
 from scipy.optimize import minimize
+from researchpy.objective_functions.likelihood import LikelihoodTracker
 
 
 
-def scipy_minimize(fun, x0, jac, method, options):
-    """Wrapper for scipy.optimize.minimize."""
-    return minimize(fun=fun, x0=x0, jac=jac, method=method, options=options)
+class CallbackTracker:
+    """Class to track the log-likelihood value."""
+    def __init__(self):
+        self.current_log_likelihood = None
+
+
+def scipy_minimize(fun, x0, jac, method, options, callback=None):
+    """Wrapper for scipy.optimize.minimize with a local tracker instance."""
+    tracker = LikelihoodTracker()  # Create a local tracker instance
+
+    def wrapped_fun(params):
+        # Update the tracker with the current log-likelihood value
+        ll = fun(params, tracker)
+        return ll
+
+    def wrapped_callback(params):
+        if callback:
+            callback(params, tracker.current_log_likelihood)
+
+    return minimize(fun=wrapped_fun, x0=x0, jac=jac, method=method, options=options, callback=wrapped_callback)
 
 
 
