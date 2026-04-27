@@ -95,6 +95,10 @@ class core_model():
                         "max_iter": solver_options.get("max_iter", None),
                         "display": solver_options.get("display", True)}
 
+        # Initialize an optimization tracker instance for this model. This tracker can be used by optimization
+        # algorithms to store and monitor the optimization process.
+        self._OptimizationTracker = OptimizationTracker()
+
         ## My design information ##
         self.DV_name = self.DV.design_info.term_names[0]
 
@@ -866,8 +870,7 @@ class general_model(core_model):
     def _neg_log_likelihood(self, params, *args, **kwargs):
 
         # Initialize an optimization tracker
-        tracker = LikelihoodTracker()
-        #tracker = OptimizationTracker()
+        #tracker = LikelihoodTracker()
 
         return neg_log_likelihood(
             params=params,
@@ -876,7 +879,7 @@ class general_model(core_model):
             solver_options=self.solver_options,
             distribution_family=self._family,
             link_function=self._link,
-            tracker=tracker
+            tracker=self._OptimizationTracker
         )
 
     def _gradient_neg_log_likelihood(self, params):
@@ -908,10 +911,9 @@ class general_model(core_model):
                 method=self.solver_options["algorithm"],
                 options={
                     'maxiter': self.solver_options["max_iter"],
-                    'disp': self.solver_options["display"],
-                    'gtol': self.solver_options["tol"],
-                    'return_all': self.solver_options["display"]
+                    'gtol': self.solver_options["tol"]
                 },
+                callback=None
             )
 
             if result.success:
@@ -920,6 +922,7 @@ class general_model(core_model):
                 converged = True
 
                 if self.solver_options["display"]:
+                    print("")
                     print(f"Optimization converged in {result.nit} iterations")
                     print(f"Final log-likelihood: {-result.fun:.4f}")
             else:
@@ -944,9 +947,9 @@ class general_model(core_model):
             )
 
         # Print log-likelihood values for each iteration
-        if self.solver_options["display"]:
-            for i, log_likelihood in enumerate(self.logL, start=1):
-                print(f"Iteration {i}: Log-Likelihood = {log_likelihood:.4f}")
+        #if self.solver_options["display"]:
+        #    for i, log_likelihood in enumerate(self.logL, start=1):
+        #        print(f"Iteration {i}: Log-Likelihood = {log_likelihood:.4f}")
 
 
 
