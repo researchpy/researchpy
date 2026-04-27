@@ -48,7 +48,8 @@ def neg_log_likelihood(params, IV, DV, solver_options, distribution_family="bino
     # Store the log-likelihood value in the tracker if provided
     if tracker is not None:
         tracker.current_log_likelihood = ll
-        print(f"[neg_log_likelihood] Updated tracker: Log-likelihood = {ll:.4f}")
+        #print(f"[neg_log_likelihood] Updated tracker: Log-likelihood = {ll:.4f}")
+        print(f"Bernoulli Log-likelihood = {ll:.4f}")
 
     return ll
 

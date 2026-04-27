@@ -11,6 +11,7 @@ from .objective_functions import likelihood
 from researchpy.objective_functions.likelihood import neg_log_likelihood, gradient_neg_log_likelihood, LikelihoodTracker
 
 from researchpy.optimize.iterative_algorithms import scipy_minimize, newton_raphson
+from researchpy.optimize.trackers import OptimizationTracker
 
 
 # Base model class for regression models. This class is not meant to be used directly, but rather to be inherited by
@@ -863,12 +864,10 @@ class general_model(core_model):
 
 
     def _neg_log_likelihood(self, params, *args, **kwargs):
-        """Negative log-likelihood function for scipy.optimize."""
-        tracker = kwargs.pop('tracker', None)
 
-        # Ensure tracker is passed correctly
-        if tracker is None:
-            tracker = LikelihoodTracker()
+        # Initialize an optimization tracker
+        tracker = LikelihoodTracker()
+        #tracker = OptimizationTracker()
 
         return neg_log_likelihood(
             params=params,

@@ -20,44 +20,9 @@ def scipy_minimize(fun, x0, jac, method, options, callback=None):
     Returns:
         OptimizeResult: The result of the optimization process.
     """
-    '''
-    tracker = LikelihoodTracker()  # Create a local tracker instance
 
-    def wrapped_fun(params):
-        # Update the tracker with the current log-likelihood value
-        ll = fun(params, tracker)
-        log_likelihood = tracker.current_log_likelihood
-        #print(f"Evaluating: Parameters = {params}, Log-likelihood = {log_likelihood:.4f}")
-        print(f"[fun] Log-likelihood = {log_likelihood:.4f}")
-
-        return ll
-
-    def wrapped_callback(params):
-        if callback:
-            callback(params, tracker.current_log_likelihood)
-        #print(f"Iteration complete: Parameters = {params}, Log-likelihood = {tracker.current_log_likelihood:.4f}")
-        print(f"[callback] Log-likelihood = {tracker.current_log_likelihood:.4f}")
-    
     try:
-        result = minimize(
-            fun=wrapped_fun,
-            x0=x0,
-            jac=jac,
-            method=method,
-            options=options,
-            callback=wrapped_callback
-        )
-        return result
-    '''
-    try:
-        result = minimize(
-            fun=fun,
-            x0=x0,
-            jac=jac,
-            method=method,
-            options=options,
-            callback=callback
-        )
+        result = minimize(fun=fun, x0=x0, jac=jac, method=method, options=options, callback=callback)
         return result
 
     except Exception as e:
