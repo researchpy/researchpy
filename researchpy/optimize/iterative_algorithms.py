@@ -1,8 +1,6 @@
 import numpy as np
 from scipy.special import expit
 from scipy.optimize import minimize
-from researchpy.objective_functions.likelihood import LikelihoodTracker
-
 
 
 

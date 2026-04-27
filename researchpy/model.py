@@ -8,7 +8,7 @@ import pandas as pd
 from .utility import *
 from .predict import predict
 from .objective_functions import likelihood
-from researchpy.objective_functions.likelihood import neg_log_likelihood, gradient_neg_log_likelihood, LikelihoodTracker
+from researchpy.objective_functions.likelihood import neg_log_likelihood, gradient_neg_log_likelihood
 
 from researchpy.optimize.iterative_algorithms import scipy_minimize, newton_raphson
 from researchpy.optimize.trackers import OptimizationTracker

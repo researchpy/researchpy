@@ -7,13 +7,6 @@ def log_likelihood(y_e):
     return np.sum(y_e) - np.sum(np.log((1 + y_e)))
 
 
-
-class LikelihoodTracker:
-    """Class to track the log-likelihood value."""
-    def __init__(self):
-        self.current_log_likelihood = float('-inf')  # Initialize to a valid value
-
-
 def neg_log_likelihood(params, IV, DV, solver_options, distribution_family="binomial", link_function="logit", tracker=None):
     """Negative log-likelihood function for scipy.optimize."""
     params = params.reshape(-1, 1)  # Ensure params is a column vector

@@ -1,11 +1,9 @@
 from scipy.stats import norm
 from scipy.special import expit
-from researchpy.optimize.iterative_algorithms import scipy_minimize, newton_raphson
 
 from researchpy.model import general_model
 from researchpy.utility import *
 from researchpy.predict import predict
-from researchpy.objective_functions import likelihood
 
 
 class logit(general_model):
