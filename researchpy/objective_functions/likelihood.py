@@ -9,7 +9,8 @@ def log_likelihood(y_e):
 
 def neg_log_likelihood(params, IV, DV, solver_options, distribution_family="binomial", link_function="logit", tracker=None):
     """Negative log-likelihood function for scipy.optimize."""
-    params = params.reshape(-1, 1)  # Ensure params is a column vector
+    #params = params.reshape(-1, 1)  # Ensure params is a column vector
+    params = np.atleast_2d(params).T  # Ensure params is a column vector
     linear_pred = IV @ params
 
     # Apply the link function
@@ -45,7 +46,7 @@ def neg_log_likelihood(params, IV, DV, solver_options, distribution_family="bino
 
         if solver_options["display"]:
             #print(f"{tracker.current_cost_index} Bernoulli Log-likelihood = {-ll:.4f}")
-            print(f"{tracker.current_cost_index} Log-likelihood = {-ll:.4f}")
+            print(f"Log-likelihood = {-ll:.5f}")
 
     return ll
 
@@ -82,3 +83,6 @@ def gradient_neg_log_likelihood(params, IV, DV, solver_options, distribution_fam
         grad += reg_grad
 
     return grad.flatten()  # Return flattened gradient for scipy.optimize
+
+
+

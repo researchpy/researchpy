@@ -1,17 +1,52 @@
 from scipy.stats import norm
 from scipy.special import expit
 
-from researchpy.model import general_model
+from researchpy.models.general_model import GeneralModel
 from researchpy.utility import *
 from researchpy.predict import predict
 
 
-class logit(general_model):
+class LogisticRegression(GeneralModel):
     """
-    Logistic regression using scipy.optimize for MLE.
+    Logistic regression for binary outcomes using Maximum Likelihood Estimation (MLE).
 
-    Falls back to Newton-Raphson if scipy optimization fails.
-    Includes regularization support and better numerical stability.
+    This class provides logistic regression analysis with support for:
+    - Multiple optimization algorithms (BFGS, Newton-Raphson)
+    - L1 and L2 regularization
+    - Odds ratio reporting
+    - Confidence intervals
+    - Model fit statistics (LR Chi-squared, etc.)
+
+    Parameters
+    ----------
+    formula_like : str
+        A string representing a valid Patsy formula (e.g., "outcome ~ predictor1 + predictor2").
+    data : dict or DataFrame, optional
+        Data containing the variables referenced in the formula.
+    solver_method : str, optional
+        Method for fitting the model. Default is "mle".
+    solver_options : dict, optional
+        Options for the solver including:
+        - algorithm: "BFGS" (default) or "newton-raphson"
+        - tol: Convergence tolerance (default 1e-7)
+        - max_iter: Maximum iterations (default 1000)
+        - display: Whether to print iteration info (default True)
+        - regularization: None, "l1", or "l2"
+        - alpha: Regularization strength (default 0.0)
+    initial_betas : ndarray, optional
+        Initial coefficient values.
+    initial_betas_method : str, optional
+        Method to initialize betas. Default is "ols".
+
+    Examples
+    --------
+    >>> import researchpy as rp
+    >>> model = rp.LogisticRegression("outcome ~ age + treatment", data=df)
+    >>> model.results()
+
+    See Also
+    --------
+    Logistic : Alias for LogisticRegression
     """
 
     def __init__(self, formula_like, data=None,
@@ -39,16 +74,16 @@ class logit(general_model):
                          solver_method=solver_method, solver_options=solver_options,
                          family="binomial", link="logit", obj_function="log-likelihood")
 
-        self.__name__ = "researchpy.Logit"
+        self.__name__ = "Researchpy.LogisticRegression"
 
         self.model_data = {}
 
 
         # Initializing betas
-        self._general_model__initialize_betas(initial_betas=initial_betas, initial_betas_method=initial_betas_method)
+        self._GeneralModel__initialize_betas(initial_betas=initial_betas, initial_betas_method=initial_betas_method)
 
         # Fit the model
-        self._general_model__fit_model()
+        self._GeneralModel__fit_model()
 
         # Compute standard errors and statistics
         self._compute_statistics()
@@ -75,7 +110,7 @@ class logit(general_model):
         self.model_data["test_stat_p_values"] = 2 * norm.sf(np.abs(self.model_data["test_stat"]))
 
         # Compute confidence intervals
-        self._core_model__compute_confidence_intervals(add_to_model_data=True)
+        self._CoreModel__compute_confidence_intervals(add_to_model_data=True)
 
 
 
@@ -87,7 +122,7 @@ class logit(general_model):
 
 
     def results(self, report="or", return_type="Dataframe", pretty_format=True,
-                decimals={"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4, "CI": 2,
+                decimals={"Coef.": 2, "Std. Err.": 4, "test_stat": 2, "test_stat_p": 4, "CI": 2,
                           "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
                           'Degrees of Freedom': 1, 'Mean Squares': 4, 'Effect size': 4},
                 *args):
@@ -128,3 +163,6 @@ class logit(general_model):
                     return model_meta, model_description, dct
                 else:
                     return model_meta, model_description, dct
+
+# Convenience alias
+Logistic = LogisticRegression

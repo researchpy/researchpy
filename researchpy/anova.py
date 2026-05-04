@@ -6,14 +6,25 @@ Created on Thu Jul 15 08:07:51 2021
 """
 
 # %% Importing libraries
+import warnings
 import numpy
 import scipy.stats
 import patsy
 import pandas
 
 from researchpy.summary import summarize
-from researchpy.MultivariableRegression.ols import ols
+# Import from the new refactored location
+#from researchpy.ols import ols
+from researchpy.models.multivariable.ols import OLS as ols
 from researchpy.utility import *
+
+warnings.warn(
+    "The 'anova' class in researchpy.anova is deprecated and will be removed in a future version. "
+    "Please use 'Anova' from researchpy.models.multivariable instead: "
+    "from researchpy.models.multivariable import Anova",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 
 # %% Creating anova class which

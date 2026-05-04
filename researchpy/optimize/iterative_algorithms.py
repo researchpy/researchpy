@@ -4,7 +4,7 @@ from scipy.optimize import minimize
 
 
 
-def scipy_minimize(fun, x0, jac, method, options, callback=None):
+def scipy_minimize(fun, x0, args=(), jac=None, method=None, options=None, callback=None):
     """Wrapper for scipy.optimize.minimize with a local tracker instance.
 
     Args:
@@ -20,7 +20,7 @@ def scipy_minimize(fun, x0, jac, method, options, callback=None):
     """
 
     try:
-        result = minimize(fun=fun, x0=x0, jac=jac, method=method, options=options, callback=callback)
+        result = minimize(fun=fun, x0=x0, args=args, jac=jac, method=method, options=options, callback=callback)
         return result
 
     except Exception as e:
