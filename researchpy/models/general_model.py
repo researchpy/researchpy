@@ -171,6 +171,69 @@ class GeneralModel(CoreModel):
         return predict(self, estimate=estimate, trans=trans)
 
 
+    def _summary_header_left(self, width=78):
+        """
+        Build the left side of the summary header for generalized models.
+
+        Shows model name and log-likelihood value.
+
+        Returns
+        -------
+        list of str
+            Lines for the left side of the header.
+        """
+        lines = [self._get_model_display_name()]
+
+        if hasattr(self, 'logL') and self.logL:
+            ll_val = self.logL[-1] if isinstance(self.logL, list) else self.logL
+            if ll_val is not None:
+                lines.append(f"Log likelihood = {ll_val:.4f}")
+
+        return lines
+
+
+    def _summary_header_right(self, width=78, descriptives_df=None):
+        """
+        Build the right side of the summary header for generalized models.
+
+        When *descriptives_df* is provided the values are read from that
+        DataFrame via ``to_string(header=False)`` so the summary is driven
+        entirely by the DataFrames returned from ``self.results()``.
+
+        Otherwise falls back to rendering from ``self`` attributes directly.
+
+        Parameters
+        ----------
+        width : int
+            Available character width.
+        descriptives_df : DataFrame or None
+            Descriptives DataFrame from ``self.results()`` (index-oriented:
+            stat names as index, values in column 0).
+
+        Returns
+        -------
+        list of str
+            Lines for the right side of the header.
+        """
+        if descriptives_df is not None:
+            return descriptives_df.to_string(header=False).split("\n")
+
+        # Fallback: build from self attributes
+        lines = [f"Number of obs = {self.nobs:>8}"]
+
+        if hasattr(self, 'LR_chi2'):
+            df = getattr(self, 'model_df', '?')
+            lines.append(f"LR chi2({df})    = {self.LR_chi2:>8.4f}")
+
+        if hasattr(self, 'model_p_value'):
+            lines.append(f"Prob > chi2   = {self.model_p_value:>8.4f}")
+
+        if hasattr(self, 'nfev') and self.nfev is not None:
+            lines.append(f"N iterations  = {self.nfev:>8}")
+
+        return lines
+
+
     def objective_function(self):
         if self.obj_func.lower() in ["log-likelihood", "log likelihood", "ll"]:
             y_e = predict(estimate="predict_y")

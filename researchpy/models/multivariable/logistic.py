@@ -164,5 +164,79 @@ class LogisticRegression(GeneralModel):
                 else:
                     return model_meta, model_description, dct
 
+
+    def _get_summary_parts(self, report="or"):
+        """
+        Return (descriptives_df, coef_df) for the Logistic Regression summary.
+
+        Calls ``self.results()`` and unpacks the 3-tuple into the two
+        DataFrames that ``CoreModel.summary()`` needs.
+
+        Parameters
+        ----------
+        report : str, optional
+            ``"or"`` for odds ratios (default), ``"coef"`` for raw coefficients.
+
+        Returns
+        -------
+        tuple of (descriptives_df, coef_df)
+        """
+        import io, contextlib
+        with contextlib.redirect_stdout(io.StringIO()):
+            _model_meta_df, model_description_df, coef_df = self.results(
+                report=report, return_type="Dataframe", pretty_format=True
+            )
+        return model_description_df, coef_df
+
+
+    def summary(self, total_width=78, return_string=False, report="or", decimals=None):
+        """
+        Print a formatted summary of the logistic regression results.
+
+        Parameters
+        ----------
+        total_width : int, optional
+            Character width for the summary output. Default is 78.
+        return_string : bool, optional
+            If True, returns the formatted string instead of printing.
+            Default is False.
+        report : str, optional
+            ``"or"`` for odds ratios (default), ``"coef"`` for raw
+            log-odds coefficients.
+        decimals : dict, optional
+            Dictionary specifying decimal places for different statistics.
+
+        Returns
+        -------
+        str or None
+            If *return_string* is True, returns the formatted summary string.
+            Otherwise, prints to terminal and returns None.
+        """
+        # Store report preference so _get_summary_parts() can pick it up
+        self._summary_report = report
+        result = super().summary(total_width=total_width, return_string=return_string, decimals=decimals)
+        del self._summary_report
+        return result
+
+
+    def _get_summary_parts(self, **kwargs):
+        """
+        Return (descriptives_df, coef_df) for the Logistic Regression summary.
+
+        Calls ``self.results()`` and unpacks the 3-tuple into the two
+        DataFrames that ``CoreModel.summary()`` needs.
+
+        Returns
+        -------
+        tuple of (descriptives_df, coef_df)
+        """
+        report = getattr(self, '_summary_report', 'or')
+        import io, contextlib
+        with contextlib.redirect_stdout(io.StringIO()):
+            model_summary_df, model_description_df, coef_df = self.results(
+                report=report, return_type="Dataframe", pretty_format=True
+            )
+        return model_summary_df, model_description_df, coef_df
+
 # Convenience alias
 Logistic = LogisticRegression
