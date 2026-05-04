@@ -618,21 +618,20 @@ class Anova(OLS):
 
                     }
 
-
-        #coef_table = self.regression_table(return_type=return_type, pretty_format=pretty_format, decimals=decimals)
-
-
         if return_type == "Dataframe":
-            #print("\n"*2, "Note: Effect size values for factors are partial.", "\n"*2)
+
+            print("\n"*2, "Note: Effect size values for factors are partial.", "\n"*2)
             return (pd.DataFrame.from_dict(descriptives, orient="index"), pd.DataFrame.from_dict(results))
 
         elif return_type == "Dictionary":
-            #print("\n"*2, "Note: Effect size values for factors are partial.", "\n"*2)
+
+            print("\n"*2, "Note: Effect size values for factors are partial.", "\n"*2)
             return (descriptives, results)
 
         else:
-            print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
 
+            print(
+                "Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
 
     def regression_table(self, return_type="Dataframe", pretty_format=True,
                          decimals={"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4, "CI": 2,
@@ -650,66 +649,173 @@ class Anova(OLS):
     # ------------------------------------------------------------------ #
     #                   summary() overrides for ANOVA                     #
     # ------------------------------------------------------------------ #
-    def _get_summary_parts(self):
+    def summary(self, total_width=78, return_string=False):
         """
-        Return (model_description_df, coef_df) for the ANOVA summary.
+        Print a formatted ANOVA summary to the terminal.
 
-        Calls ``self.results()`` with stdout suppressed (to avoid the
-        "Note:" side-effect print) and returns the two DataFrames that
-        ``CoreModel.summary()`` needs.
+        Retrieves the model results as Pandas DataFrames via ``self.results()``
+        and converts them into a clean, aligned text summary with:
+
+        - Header with model name (left) and fit statistics (right)
+        - ANOVA table with Model, factor, Residual, and Total rows
+
+        Parameters
+        ----------
+        total_width : int, optional
+            Character width for the summary output. Default is 78.
+        return_string : bool, optional
+            If True, returns the formatted string instead of printing.
+            Default is False (prints to terminal).
 
         Returns
         -------
-        tuple of (model_description_df, coef_df)
+        str or None
+            If return_string is True, returns the formatted summary string.
+            Otherwise, prints to terminal and returns None.
         """
+        # Retrieve results as DataFrames, suppressing the "Note:" side-effect
+        # print that Anova.results() emits.
         import io, contextlib
         with contextlib.redirect_stdout(io.StringIO()):
-            model_description_df, coef_df = self.results(
+            descriptives_df, results_df = self.results(
                 return_type="Dataframe", pretty_format=True, decimals=4
             )
 
-        model_summary_df = None
-        return model_summary_df, model_description_df, coef_df
+        output_lines = []
+
+        # === HEADER SECTION ===
+        # Left: model name  |  Right: fit statistics from descriptives DataFrame
+        output_lines.append(
+            self._summary_header(total_width)
+        )
+
+        # === ANOVA TABLE (body) — built from the results DataFrame ===
+        output_lines.append(self._summary_coef_table(results_df, total_width))
+
+        summary_str = "\n".join(output_lines)
+
+        if return_string:
+            return summary_str
+        else:
+            print(summary_str)
+            return None
 
 
     # ------------------------------------------------------------------ #
-    #               Header overrides for ANOVA                            #
+    #               Header helpers (left / right / compose)               #
     # ------------------------------------------------------------------ #
-    def _summary_header_left(self, width=78, model_summary_df=None):
+    def _summary_header(self, width=78, model_summary_df=None:
         """
-        Left header for ANOVA: just the model display name.
+        Compose the two-column header from left and right sub-sections.
 
-        Overrides OLS's mini-ANOVA table because the full ANOVA table
-        is already shown in the body section.
+        Parameters
+        ----------
+        width : int
+            Total character width.
+        model_summary_df : DataFrame or None
+            Descriptives DataFrame from ``self.results()``.  When provided the
+            right-side statistics are read from this DataFrame rather than from
+            ``self.model_data`` directly.
+        """
+        left_lines = self._summary_header_left(width)
+        right_lines = self._summary_header_right(
+            width, descriptives_df=model_summary_df
+        )
+
+        max_lines = max(len(left_lines), len(right_lines))
+        while len(left_lines) < max_lines:
+            left_lines.append("")
+        while len(right_lines) < max_lines:
+            right_lines.append("")
+
+        left_width = width * 55 // 100
+        gap = "    "
+
+        combined = []
+        for left_text, right_text in zip(left_lines, right_lines):
+            combined.append(f"{left_text:<{left_width}}{gap}{right_text}")
+
+        return "\n".join(combined)
+
+
+    def _summary_header_left(self, width=78):
+        """
+        Build the left side of the Anova summary header.
+
+        Returns just the model display name — the ANOVA source table
+        is shown in the body instead.
+
+        Returns
+        -------
+        list of str
+            Lines for the left side of the header.
         """
         return [self._get_model_display_name()]
 
 
     def _summary_header_right(self, width=78, descriptives_df=None):
         """
-        Right header for ANOVA: fit statistics from the descriptives DataFrame.
+        Build the right side of the Anova summary header with fit statistics.
 
-        Anova's descriptives_df is *index-oriented* (stat names as index,
-        values in column 0), unlike OLS's transposed single-row format.
+        When *descriptives_df* is provided (a single-row DataFrame whose
+        columns are the statistic names), values are read from that DataFrame
+        so the summary is driven entirely by the DataFrames returned from
+        ``self.results()``.
+
+        Parameters
+        ----------
+        width : int
+            Available character width.
+        descriptives_df : DataFrame or None
+            Descriptives DataFrame from ``self.results()``.
+
+        Returns
+        -------
+        list of str
+            Lines for the right side of the header.
         """
         if descriptives_df is not None:
-            desc_lines = descriptives_df.to_string(header=False).split("\n")
-            return [desc_lines[0]] + self._splice_f_stat_lines() + desc_lines[1:]
+            # The descriptives DF is index-oriented: stat names as index,
+            # values in column 0.
+            def _val(idx_label):
+                try:
+                    v = descriptives_df.loc[idx_label, 0]
+                    if isinstance(v, (int, float)):
+                        return f"{v:>8.4f}"
+                    return f"{v:>8}"
+                except (KeyError, IndexError):
+                    return "     N/A"
 
+            df_model = self.model_data.get("degrees_of_freedom_model", 0)
+            df_resid = self.model_data.get("degrees_of_freedom_residual", 0)
+
+            return [
+                f"Number of obs = {_val('Number of obs = ')}",
+                f"F({df_model}, {df_resid}) = {self.model_data.get('f_value_model', 0):>8.2f}",
+                f"Prob > F      = {self.model_data.get('f_p_value_model', 0):>8.4f}",
+                f"R-squared     = {_val('R-squared = ')}",
+                f"Adj R-squared = {_val('Adj R-squared = ')}",
+                f"Root MSE      = {_val('Root MSE = ')}",
+            ]
+
+        # Fallback: build from self.model_data (inherited OLS behaviour)
         return super()._summary_header_right(width)
 
 
     # ------------------------------------------------------------------ #
     #                    ANOVA table (body section)                        #
     # ------------------------------------------------------------------ #
-    def _summary_coef_table(self, df_results, width=78, decimals=None):
+    def _summary_coef_table(self, df_results, width=78):
         """
-        Build the ANOVA table as the summary body using
-        ``DataFrame.to_string()``.
+        Build the ANOVA table as the summary body (overrides the coefficient
+        table that OLS/CoreModel would normally show).
 
-        Overrides the coefficient table that OLS / CoreModel would normally
-        show.  Displays Model, individual factor rows, Residual, and Total
-        with SS, df, MS, F, p-value, Eta², Epsilon², Omega².
+        When *df_results* is a Pandas DataFrame (the ANOVA table returned by
+        ``self.results()``), the table is built directly from its rows.
+        Otherwise falls back to ``self.model_data`` / ``self.factor_effects``.
+
+        Displays Model, individual factor rows, Residual, and Total with
+        SS, df, MS, F, p-value, Eta², Epsilon², Omega².
 
         Parameters
         ----------
@@ -717,80 +823,219 @@ class Anova(OLS):
             The ANOVA results DataFrame from ``self.results()``.
         width : int
             Total character width of the output.
-        decimals : dict, optional
-            Dictionary specifying decimal places for different statistics.
 
         Returns
         -------
         str
             Formatted ANOVA table string.
         """
-        # ---- Resolve decimal places -------------------------------------
-        base_decimals = {
-            "Sum of Squares": 4, "Degrees of Freedom": 1, "Mean Squares": 4,
-            "test_stat": 4, "test_stat_p": 4, "Effect size": 4,
-        }
-        if decimals is not None:
-            base_decimals = base_decimals | decimals
-        dec = base_decimals
+        rows = self._build_anova_rows(df_results)
 
-        # ---- Prepare the DataFrame for display -------------------------
-        table = df_results.copy()
-
-        # Keep blank separator rows — they are intentional visual spacers
-        # added by results() for a non-cluttered presentation.
-
-        # Rename to shorter column headers
-        table = table.rename(columns={
-            "Sum of Squares":    "SS",
-            "Degrees of Freedom": "df",
-            "Mean Squares":      "MS",
-            "F value":           "F",
-            "p-value":           "p-value",
-            "Eta squared":       "Eta^2",
-            "Epsilon squared":   "Eps^2",
-            "Omega squared":     "Omega^2",
-        })
-
-        # Replace empty strings with NaN so na_rep handles them uniformly
-        table = table.replace("", float("nan"))
-
-        # Coerce numeric columns from object dtype to float so that
-        # to_string() formatters are applied consistently.
-        numeric_cols = ["SS", "df", "MS", "F", "p-value",
-                        "Eta^2", "Eps^2", "Omega^2"]
-        for col in numeric_cols:
-            table[col] = pd.to_numeric(table[col], errors="coerce")
-
-        # ---- Per-column formatters (using shared static methods) -----------
-        formatters = {
-            "SS":      self._fmt_float(dec.get("Sum of Squares", 4)),
-            "df":      self._fmt_int,
-            "MS":      self._fmt_float(dec.get("Mean Squares", 4)),
-            "F":       self._fmt_float(dec.get("test_stat", 4)),
-            "p-value": self._fmt_float(dec.get("test_stat_p", 4)),
-            "Eta^2":   self._fmt_float(dec.get("Effect size", 4)),
-            "Eps^2":   self._fmt_float(dec.get("Effect size", 4)),
-            "Omega^2": self._fmt_float(dec.get("Effect size", 4)),
-        }
-
-        # ---- Build the output string -----------------------------------
-        sep = "-" * width
-
-        table_str = table.to_string(
-            index=False,
-            na_rep="",
-            formatters=formatters,
-            justify="right",
-        )
-
-        lines = [
-            sep,
-            table_str,
-            sep,
-            "Note: Effect size values for factors are partial.",
+        # Column definitions: (key, header_label, col_width, decimals)
+        columns = [
+            ("ss",     "SS",        12, 4),
+            ("df",     "df",         4, 0),
+            ("ms",     "MS",        12, 4),
+            ("f",      "F",          9, 4),
+            ("p",      "p-value",    8, 4),
+            ("eta",    "Eta^2",      8, 4),
+            ("eps",    "Eps^2",      8, 4),
+            ("omega",  "Omega^2",    8, 4),
         ]
 
+        source_w = 14
+        sep_char = "-"
+
+        # --- header line ---
+        header = f"{'Source':>{source_w}} |"
+        for _key, label, col_w, _ in columns:
+            header += f" {label:>{col_w}}"
+        lines = [sep_char * width, header]
+
+        # --- mid separator ---
+        lines.append(
+            sep_char * source_w + "+" + sep_char * (width - source_w - 1)
+        )
+
+        # --- helper formatter ---
+        def fmt(val, w, d):
+            if val is None or val == "":
+                return " " * w
+            try:
+                if d == 0:
+                    return f"{int(val):>{w}}"
+                return f"{float(val):>{w}.{d}f}"
+            except (ValueError, TypeError):
+                return f"{str(val):>{w}}"
+
+        # --- data rows ---
+        for row in rows:
+            line = f"{row['source']:>{source_w}} |"
+            for key, _, col_w, d in columns:
+                line += f" {fmt(row.get(key), col_w, d)}"
+            lines.append(line)
+
+        lines.append(sep_char * width)
+
+        # Note about partial effect sizes
+        lines.append("Note: Effect size values for factors are partial.")
+
         return "\n".join(lines)
+
+
+    # ------------------------------------------------------------------ #
+    #                  Row assembly for the ANOVA table                    #
+    # ------------------------------------------------------------------ #
+    def _build_anova_rows(self, df_results=None):
+        """
+        Assemble a list of row dicts for the ANOVA summary table.
+
+        When *df_results* is a Pandas DataFrame (from ``self.results()``),
+        the rows are read directly from the DataFrame.  Otherwise falls back
+        to ``self.model_data`` / ``self.factor_effects``.
+
+        Row order: Model, [each factor], Residual, Total.
+
+        Parameters
+        ----------
+        df_results : DataFrame or None
+            The ANOVA results DataFrame from ``self.results()``.
+
+        Returns
+        -------
+        list of dict
+            Each dict has keys: source, ss, df, ms, f, p, eta, eps, omega.
+        """
+        # --- DataFrame path: read rows directly from the results DF ---
+        if df_results is not None and isinstance(df_results, pd.DataFrame):
+            return self._build_anova_rows_from_df(df_results)
+
+        # --- Fallback path: build from self.model_data / self.factor_effects ---
+        return self._build_anova_rows_from_model_data()
+
+
+    def _build_anova_rows_from_df(self, df):
+        """
+        Build ANOVA row dicts by iterating over the results DataFrame.
+
+        The DataFrame columns are expected to match the output of
+        ``self.results(return_type="Dataframe", pretty_format=True)``:
+
+            Source | Sum of Squares | Degrees of Freedom | Mean Squares |
+            F value | p-value | Eta squared | Epsilon squared | Omega squared
+
+        Empty-string or NaN cells are normalised to ``None`` so that the
+        formatter renders blanks for Residual / Total effect-size columns.
+
+        Parameters
+        ----------
+        df : DataFrame
+            ANOVA results table.
+
+        Returns
+        -------
+        list of dict
+        """
+        rows = []
+
+        def _clean(val):
+            """Return None for empty / NaN values, else the value."""
+            if val is None:
+                return None
+            if isinstance(val, str) and val.strip() == "":
+                return None
+            try:
+                if pd.isna(val):
+                    return None
+            except (TypeError, ValueError):
+                pass
+            return val
+
+        for _, row in df.iterrows():
+            source = _clean(row.get("Source"))
+            if source is None:
+                continue  # skip blank separator rows
+
+            rows.append({
+                "source": str(source),
+                "ss":     _clean(row.get("Sum of Squares")),
+                "df":     _clean(row.get("Degrees of Freedom")),
+                "ms":     _clean(row.get("Mean Squares")),
+                "f":      _clean(row.get("F value")),
+                "p":      _clean(row.get("p-value")),
+                "eta":    _clean(row.get("Eta squared")),
+                "eps":    _clean(row.get("Epsilon squared")),
+                "omega":  _clean(row.get("Omega squared")),
+            })
+
+        return rows
+
+
+    def _build_anova_rows_from_model_data(self):
+        """
+        Fallback: build ANOVA row dicts from ``self.model_data`` and
+        ``self.factor_effects`` when no DataFrame is available.
+
+        Returns
+        -------
+        list of dict
+        """
+        rows = []
+
+        # --- Model row ---
+        rows.append({
+            "source": "Model",
+            "ss":    self.model_data.get("sum_of_square_model"),
+            "df":    self.model_data.get("degrees_of_freedom_model"),
+            "ms":    self.model_data.get("msr"),
+            "f":     self.model_data.get("f_value_model"),
+            "p":     self.model_data.get("f_p_value_model"),
+            "eta":   self.model_data.get("Eta squared"),
+            "eps":   self.model_data.get("Epsilon squared"),
+            "omega": self.model_data.get("Omega squared"),
+        })
+
+        # --- Factor rows ---
+        if hasattr(self, "factor_effects"):
+            n_factors = len(self.factor_effects["Sum of Squares"])
+            cleaned_names = [
+                patsy_term_cleaner(t)
+                for t in self._IV_design_info.term_names[1:]
+            ]
+            for i in range(n_factors):
+                name = (cleaned_names[i]
+                        if i < len(cleaned_names)
+                        else self.factor_effects["Source"][i])
+                rows.append({
+                    "source": name,
+                    "ss":    self.factor_effects["Sum of Squares"][i],
+                    "df":    self.factor_effects["Degrees of Freedom"][i],
+                    "ms":    self.factor_effects["Mean Squares"][i],
+                    "f":     self.factor_effects["F value"][i],
+                    "p":     self.factor_effects["p-value"][i],
+                    "eta":   self.factor_effects["Eta squared"][i],
+                    "eps":   self.factor_effects["Epsilon squared"][i],
+                    "omega": self.factor_effects["Omega squared"][i],
+                })
+
+        # --- Residual row ---
+        rows.append({
+            "source": "Residual",
+            "ss":    self.model_data.get("sum_of_square_residual"),
+            "df":    self.model_data.get("degrees_of_freedom_residual"),
+            "ms":    self.model_data.get("mse"),
+            "f": None, "p": None, "eta": None, "eps": None, "omega": None,
+        })
+
+        # --- Total row ---
+        rows.append({
+            "source": "Total",
+            "ss":    self.model_data.get("sum_of_square_total"),
+            "df":    self.model_data.get("degrees_of_freedom_total"),
+            "ms":    self.model_data.get("mst"),
+            "f": None, "p": None, "eta": None, "eps": None, "omega": None,
+        })
+
+        return rows
 
 

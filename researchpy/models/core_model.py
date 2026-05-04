@@ -326,48 +326,87 @@ class CoreModel():
                     self.regression_table_info["p-value"].append(round(p.item(), decimals["test_stat_p"]))
                     self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci, decimals["CI"]),
                                                                                                       round(u_ci, decimals["CI"])])
-    def summary(self, return_string=False):
+
+    def _get_summary_parts(self):
+        """
+        Return the DataFrames needed by ``summary()`` to render output.
+
+        Subclasses **must** override this to call ``self.results()`` (with
+        stdout suppressed if needed) and return the relevant DataFrames.
+
+        Returns
+        -------
+        tuple of (descriptives_df, body_df)
+            *descriptives_df* – index-oriented DataFrame with fit-statistics
+            used to build the header right side.
+            *body_df* – DataFrame used to build the summary body (coefficient
+            table for regression, ANOVA table for Anova, etc.).
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} must override _get_summary_parts() "
+            "to provide DataFrames for summary()."
+        )
+
+
+    def summary(self, total_width=78, return_string=False, decimals=None):
         """
         Print a formatted summary of the model results to the terminal.
 
-        This method displays the model results in a format with:
-        - Model header information (model type, number of observations, fit statistics)
-        - Coefficient table with standard errors, test statistics, p-values, and confidence intervals
+        Retrieves DataFrames via ``_get_summary_parts()`` and composes the
+        output from overridable building blocks:
+
+        - **Header** (left + right side-by-side): ``_summary_header()``
+        - **Body** (coefficient / ANOVA table): ``_summary_coef_table()``
 
         Parameters
         ----------
+        total_width : int, optional
+            Character width for the summary output. Default is 78.
         return_string : bool, optional
             If True, returns the formatted string instead of printing.
             Default is False (prints to terminal).
+        decimals : dict, optional
+            Dictionary specifying decimal places for different statistics.
+            Supported keys: "Coef.", "Std. Err.", "test_stat", "test_stat_p",
+            "CI", "Root MSE", "R-squared", "Adj R-squared", "Sum of Squares",
+            "Degrees of Freedom", "Mean Squares", "Effect size".
+            User-provided values override the base defaults.
 
         Returns
         -------
         str or None
-            If return_string is True, returns the formatted summary string.
+            If *return_string* is True, returns the formatted summary string.
             Otherwise, prints to terminal and returns None.
-
-        Examples
-        --------
-        >>> model = rp.OLS("y ~ x1 + x2", data=df)
-        >>> model.summary()  # prints to terminal
-        >>> s = model.summary(return_string=True)  # returns string
         """
-        # Get the results - this calls the subclass's results() method
-        results = self.results(return_type="Dictionary")
+        # Base decimal defaults — user values override these
+        base_decimals = {
+            "Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4,
+            "CI": 2, "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4,
+            "Sum of Squares": 4, "Degrees of Freedom": 1, "Mean Squares": 4,
+            "Effect size": 4,
+        }
+        if decimals is not None:
+            base_decimals = base_decimals | decimals
+        decimals = base_decimals
 
-        # Build the summary string
+
+        model_summary_df, model_description_df, coef_df = self._get_summary_parts()
+
+
+
         output_lines = []
 
-        # Determine total width for the output
-        total_width = 78
-
         # === HEADER SECTION ===
-        output_lines.append(self._summary_header(total_width))
+        output_lines.append(
+            self._summary_header(total_width, model_summary_df=model_summary_df, descriptives_df=model_description_df)
+        )
 
-        # === COEFFICIENT TABLE ===
-        output_lines.append(self._summary_coef_table(results, total_width))
+        # === BODY SECTION ===
+        output_lines.append(
+            self._summary_coef_table(coef_df, total_width, decimals=decimals)
+        )
 
-        # Join all sections
+
         summary_str = "\n".join(output_lines)
 
         if return_string:
@@ -377,18 +416,19 @@ class CoreModel():
             return None
 
 
-    def _summary_header(self, width=78):
+    def _get_model_display_name(self):
         """
-        Build the header section of the summary output.
+        Return a human-readable display name for the model.
 
-        Subclasses can override this to customize the header for their model type.
+        Maps internal __name__ attributes to user-friendly display names.
+        Subclasses can override to provide custom display names.
+
+        Returns
+        -------
+        str
+            Human-readable model name.
         """
-        lines = []
-
-        # Get model type name - clean up the __name__ attribute
         model_name = getattr(self, '__name__', 'Model').replace('Researchpy.', '').replace('researchpy.', '')
-
-        # Map internal names to display names
         model_display_names = {
             'OLS': 'Linear Regression (OLS)',
             'LinearRegression': 'Linear Regression (OLS)',
@@ -399,194 +439,272 @@ class CoreModel():
             'GeneralModel': 'Generalized Linear Model',
             'CoreModel': 'Model'
         }
-        model_display = model_display_names.get(model_name, model_name)
-
-        # Build header with model info on left, statistics on right
-        # Left side info
-        left_info = [model_display]
-
-        # Add log likelihood if available (for MLE models)
-        if hasattr(self, 'logL') and self.logL:
-            if isinstance(self.logL, list):
-                ll_val = self.logL[-1] if self.logL else None
-            else:
-                ll_val = self.logL
-            if ll_val is not None:
-                left_info.append(f"Log likelihood = {ll_val:.4f}")
-
-        # Right side info
-        right_info = []
-        right_info.append(f"Number of obs = {self.nobs:>8}")
-
-        # Add model-specific statistics
-        if hasattr(self, 'model_data'):
-            # For OLS models
-            if 'r squared' in self.model_data:
-                right_info.append(f"R-squared     = {self.model_data['r squared']:>8.4f}")
-            if 'r squared adj.' in self.model_data:
-                right_info.append(f"Adj R-squared = {self.model_data['r squared adj.']:>8.4f}")
-            if 'f_value_model' in self.model_data:
-                df_model = self.model_data.get('degrees_of_freedom_model', '?')
-                right_info.append(f"F({df_model}, {self.model_data.get('degrees_of_freedom_residual', '?')}) = {self.model_data['f_value_model']:>8.4f}")
-                right_info.append(f"Prob > F      = {self.model_data.get('f_p_value_model', 0):>8.4f}")
-            if 'root_mse' in self.model_data:
-                right_info.append(f"Root MSE      = {self.model_data['root_mse']:>8.4f}")
-
-        # For MLE models (Logistic, etc.)
-        if hasattr(self, 'LR_chi2'):
-            df = getattr(self, 'model_df', '?')
-            right_info.append(f"LR chi2({df})    = {self.LR_chi2:>8.4f}")
-        if hasattr(self, 'model_p_value'):
-            right_info.append(f"Prob > chi2   = {self.model_p_value:>8.4f}")
-
-        # Build the header lines with left and right alignment
-        max_lines = max(len(left_info), len(right_info))
-        left_width = width // 2
-
-        for i in range(max_lines):
-            left_text = left_info[i] if i < len(left_info) else ""
-            right_text = right_info[i] if i < len(right_info) else ""
-            line = f"{left_text:<{left_width}}{right_text}"
-            lines.append(line)
-
-        return "\n".join(lines)
+        return model_display_names.get(model_name, model_name)
 
 
-    def _summary_coef_table(self, results, width=78):
+    def _summary_header(self, width=78, model_summary_df=None, descriptives_df=None):
         """
-        Build the coefficient table section of the summary output.
+        Build the header section of the summary output by composing
+        left and right sub-sections side-by-side.
+
+        Subclasses should override ``_summary_header_left()`` and/or
+        ``_summary_header_right()`` to customize header content for their
+        model type, rather than overriding this method directly.
 
         Parameters
         ----------
-        results : tuple or dict
-            The results from self.results(return_type="Dictionary")
-        width : int
-            Total width of the output
+        width : int, optional
+            Total character width of the output. Default is 78.
+        descriptives_df : DataFrame or None, optional
+            Descriptives DataFrame from ``self.results()``.  When provided,
+            it is forwarded to ``_summary_header_right()`` so that subclasses
+            can render fit statistics directly from the DataFrame.
 
         Returns
         -------
         str
-            Formatted coefficient table
+            Formatted header string.
         """
-        lines = []
+        left_lines = self._summary_header_left(width, model_summary_df=model_summary_df)
+        right_lines = self._summary_header_right(
+            width, descriptives_df=descriptives_df
+        )
 
-        # Get coefficient data - handle different result structures
-        if isinstance(results, tuple):
-            # OLS returns (descriptives, model_results, coef_table)
-            # Logistic returns (model_meta, model_description, coef_table)
-            coef_data = results[-1]  # Coefficient table is always last
-        else:
-            coef_data = results
+        # Pad shorter list to match longer
+        max_lines = max(len(left_lines), len(right_lines))
+        while len(left_lines) < max_lines:
+            left_lines.append("")
+        while len(right_lines) < max_lines:
+            right_lines.append("")
 
-        # Determine column names and data
-        dv_name = self.DV_name
+        # Calculate left column width and gap
+        left_width = width * 55 // 100
+        gap = "    "
 
-        # Get the beta column name (could be "Coef." or "Odds Ratio")
-        beta_col = "Coef."
-        if isinstance(coef_data, dict):
-            if "Odds Ratio" in coef_data:
-                beta_col = "Odds Ratio"
+        combined = []
+        for left_text, right_text in zip(left_lines, right_lines):
+            combined.append(f"{left_text:<{left_width}}{gap}{right_text}")
 
-        # Build column headers
-        ci_label = f"[{int(self.CI_LEVEL * 100)}% Conf. Interval]"
-        test_stat_label = self._test_stat_name
-        p_label = f"P>|{test_stat_label}|"
-
-        # Define column widths
-        col_widths = {
-            'var': 12,
-            'coef': 11,
-            'stderr': 10,
-            'tstat': 8,
-            'pval': 7,
-            'ci_low': 11,
-            'ci_high': 11
-        }
-
-        # Header separator
-        sep_line = "-" * width
-        mid_sep = "-" * col_widths['var'] + "+" + "-" * (width - col_widths['var'] - 1)
-
-        lines.append(sep_line)
-
-        # Column header line
-        header = (f"{dv_name:>{col_widths['var']}} | "
-                  f"{beta_col:>{col_widths['coef']}} "
-                  f"{'Std. Err.':>{col_widths['stderr']}} "
-                  f"{test_stat_label:>{col_widths['tstat']}} "
-                  f"{p_label:>{col_widths['pval']}} "
-                  f"{ci_label:>{col_widths['ci_low'] + col_widths['ci_high'] + 1}}")
-        lines.append(header)
-        lines.append(mid_sep)
-
-        # Get data rows
-        if isinstance(coef_data, dict):
-            # Dictionary format
-            var_names = coef_data.get(dv_name, [])
-            coefs = coef_data.get(beta_col, coef_data.get("Coef.", []))
-            std_errs = coef_data.get("Std. Err.", [])
-            test_stats = coef_data.get(self._test_stat_name, [])
-            p_values = coef_data.get("p-value", [])
-            ci_col = coef_data.get(f"{int(self.CI_LEVEL * 100)}% Conf. Interval", [])
-
-            for i, var in enumerate(var_names):
-                coef = coefs[i] if i < len(coefs) else ""
-                se = std_errs[i] if i < len(std_errs) else ""
-                ts = test_stats[i] if i < len(test_stats) else ""
-                pv = p_values[i] if i < len(p_values) else ""
-
-                # Handle confidence intervals (stored as [lower, upper] pairs)
-                if i < len(ci_col) and isinstance(ci_col[i], (list, tuple)):
-                    ci_low, ci_high = ci_col[i]
-                else:
-                    ci_low, ci_high = "", ""
-
-                # Format the row
-                row = self._format_coef_row(var, coef, se, ts, pv, ci_low, ci_high, col_widths)
-                lines.append(row)
-
-        lines.append(sep_line)
-
-        return "\n".join(lines)
+        return "\n".join(combined)
 
 
-    def _format_coef_row(self, var_name, coef, stderr, tstat, pval, ci_low, ci_high, col_widths):
+    def _summary_header_left(self, width=78, model_summary_df=None):
         """
-        Format a single row of the coefficient table.
+        Build the left side of the summary header.
+
+        Base implementation returns the model display name.
+        Subclasses should override to add model-specific content
+        (e.g., ANOVA source table for linear models, log-likelihood for MLE models).
 
         Parameters
         ----------
-        var_name : str
-            Variable name
-        coef, stderr, tstat, pval, ci_low, ci_high : numeric or str
-            Statistics for the row
-        col_widths : dict
-            Dictionary of column widths
+        width : int, optional
+            Total character width of the output. Default is 78.
+        model_summary_df : DataFrame or None, optional
+            Model summary DataFrame from ``self.results()``.  When None
+            (e.g. for ANOVA) only the display name is shown.
 
         Returns
         -------
-        str
-            Formatted row string
+        list of str
+            Lines for the left side of the header.
         """
-        # Format numeric values, handle missing/empty
-        def fmt_num(val, width, decimals=4):
-            if val == "" or val is None or (isinstance(val, float) and np.isnan(val)):
-                return " " * width
+        return [self._get_model_display_name()]
+
+
+    def _summary_header_right(self, width=78, descriptives_df=None):
+        """
+        Build the right side of the summary header.
+
+        Base implementation returns the number of observations.
+        Subclasses should override to add model-specific fit statistics
+        (e.g., R-squared for linear models, LR chi-squared for MLE models).
+
+        Parameters
+        ----------
+        width : int, optional
+            Total character width of the output. Default is 78.
+        descriptives_df : DataFrame or None, optional
+            Descriptives DataFrame from ``self.results()``.  The base
+            implementation ignores this; subclasses can use it to render
+            fit statistics from the DataFrame rather than ``self.model_data``.
+
+        Returns
+        -------
+        list of str
+            Lines for the right side of the header.
+        """
+        return [f"Number of obs = {self.nobs:>8}"]
+
+
+    # ------------------------------------------------------------------ #
+    #              Shared formatters for DataFrame.to_string()             #
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _fmt_float(decimals):
+        """Return a ``to_string`` formatter: renders floats or blank for NaN."""
+        def _f(val):
             try:
-                return f"{float(val):>{width}.{decimals}f}"
+                if pd.isna(val):
+                    return ""
+            except (TypeError, ValueError):
+                pass
+            try:
+                return f"{float(val):.{decimals}f}"
             except (ValueError, TypeError):
-                return f"{str(val):>{width}}"
+                return str(val)
+        return _f
 
-        # Truncate variable name if too long
-        var_display = var_name[:col_widths['var']] if len(str(var_name)) > col_widths['var'] else var_name
+    @staticmethod
+    def _fmt_int(val):
+        """``to_string`` formatter: renders integers or blank for NaN."""
+        try:
+            if pd.isna(val):
+                return ""
+        except (TypeError, ValueError):
+            pass
+        try:
+            return f"{int(val)}"
+        except (ValueError, TypeError):
+            return str(val)
 
-        row = (f"{var_display:>{col_widths['var']}} | "
-               f"{fmt_num(coef, col_widths['coef'], 4)} "
-               f"{fmt_num(stderr, col_widths['stderr'], 4)} "
-               f"{fmt_num(tstat, col_widths['tstat'], 2)} "
-               f"{fmt_num(pval, col_widths['pval'], 3)} "
-               f"{fmt_num(ci_low, col_widths['ci_low'], 4)} "
-               f"{fmt_num(ci_high, col_widths['ci_high'], 4)}")
+    @staticmethod
+    def _fmt_str(val):
+        """``to_string`` formatter: keeps strings, blanks NaN."""
+        if val is None:
+            return ""
+        try:
+            if pd.isna(val):
+                return ""
+        except (TypeError, ValueError):
+            pass
+        return str(val)
 
-        return row
+    @staticmethod
+    def _fmt_beta(decimals):
+        """``to_string`` formatter: renders '(reference)' strings or float."""
+        def _f(val):
+            if isinstance(val, str):
+                return val  # e.g. "(reference)"
+            try:
+                if pd.isna(val):
+                    return ""
+            except (TypeError, ValueError):
+                pass
+            try:
+                return f"{float(val):.{decimals}f}"
+            except (ValueError, TypeError):
+                return str(val)
+        return _f
+
+
+    def _summary_coef_table(self, coef_df, width=78, decimals=None):
+        """
+        Build the coefficient table section of the summary output using
+        ``DataFrame.to_string()``.
+
+        The DataFrame is expected to have been produced by
+        ``self.results(return_type="Dataframe")`` and to contain columns for
+        the DV name (variable labels), coefficient estimates, standard errors,
+        test statistics, p-values, and confidence intervals.
+
+        Parameters
+        ----------
+        coef_df : DataFrame
+            Coefficient table DataFrame from ``self.results()``.
+        width : int
+            Total character width of the output.
+        decimals : dict, optional
+            Dictionary specifying decimal places for different statistics.
+            Supported keys: "Coef.", "Std. Err.", "test_stat", "test_stat_p",
+            "CI".  Falls back to base defaults when not provided.
+
+        Returns
+        -------
+        str
+            Formatted coefficient table string.
+        """
+        # ---- Resolve decimal places -------------------------------------
+        base_decimals = {
+            "Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4,
+            "CI": 2,
+        }
+        if decimals is not None:
+            base_decimals = base_decimals | decimals
+        dec = base_decimals
+
+        table = coef_df.copy()
+
+        # ---- Identify column names dynamically -------------------------
+        dv_name = table.columns[0]  # First column is the variable name
+
+        beta_col = "Coef."
+        if "Odds Ratio" in table.columns:
+            beta_col = "Odds Ratio"
+
+        test_stat_label = self._test_stat_name
+        ci_col_name = f"{int(self.CI_LEVEL * 100)}% Conf. Interval"
+
+        # ---- Format CI list column into "[lower, upper]" strings --------
+        if ci_col_name in table.columns:
+            ci_dec = dec.get("CI", 2)
+
+            def _fmt_ci_combined(val):
+                if isinstance(val, (list, tuple)) and len(val) == 2:
+                    lower = val[0]
+                    upper = val[1]
+                    try:
+                        return f"[{float(lower):.{ci_dec}f}, {float(upper):.{ci_dec}f}]"
+                    except (ValueError, TypeError):
+                        return ""
+                try:
+                    if pd.isna(val):
+                        return ""
+                except (TypeError, ValueError):
+                    pass
+                return str(val)
+
+            table[ci_col_name] = table[ci_col_name].apply(_fmt_ci_combined)
+
+        # ---- Select and order display columns ---------------------------
+        display_cols = [dv_name]
+        for col in [beta_col, "Std. Err.", test_stat_label, "p-value",
+                     ci_col_name]:
+            if col in table.columns:
+                display_cols.append(col)
+        table = table[display_cols]
+
+        # ---- Coerce numeric columns to float ----------------------------
+        # Skip the beta column — it may contain "(reference)" strings
+        # Skip the CI column — it is now a pre-formatted string
+        for col in display_cols[1:]:
+            if col in (beta_col, ci_col_name):
+                continue
+            table[col] = pd.to_numeric(table[col], errors="coerce")
+
+        # ---- Per-column formatters (using shared static methods) -----------
+        formatters = {
+            dv_name:         self._fmt_str,
+            beta_col:        self._fmt_beta(dec.get("Coef.", 2)),
+            "Std. Err.":     self._fmt_float(dec.get("Std. Err.", 4)),
+            test_stat_label: self._fmt_float(dec.get("test_stat", 4)),
+            "p-value":       self._fmt_float(dec.get("test_stat_p", 4)),
+            ci_col_name:     self._fmt_str,
+        }
+        # Only include formatters for columns actually in the table
+        formatters = {k: v for k, v in formatters.items() if k in table.columns}
+
+        # ---- Build the output string ------------------------------------
+        sep = "-" * width
+
+        table_str = table.to_string(
+            index=False,
+            na_rep="",
+            formatters=formatters,
+            justify="right",
+        )
+
+        lines = [sep, table_str, sep]
+
+        return "\n".join(lines)
 

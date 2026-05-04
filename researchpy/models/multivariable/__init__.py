@@ -32,6 +32,7 @@ Usage:
 """
 
 from researchpy.models.multivariable.ols import OLS, LinearRegression, LM
+from researchpy.models.multivariable.lm import lm
 from researchpy.models.multivariable.anova import Anova
 from researchpy.models.multivariable.logistic import LogisticRegression, Logistic
 
