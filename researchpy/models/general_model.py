@@ -32,7 +32,8 @@ class GeneralModel(CoreModel):
 
 
         super().__init__(formula_like=formula_like, data=data, matrix_type=matrix_type, conf_level=conf_level,
-                         family=family, link=link, solver_options=solver_options, solver_method=solver_method, obj_function=obj_function)
+                         family=family, link=link, solver_options=solver_options, solver_method=solver_method,
+                         obj_function=obj_function)
 
 
 
@@ -171,7 +172,7 @@ class GeneralModel(CoreModel):
         return predict(self, estimate=estimate, trans=trans)
 
 
-    def _summary_header_left(self, width=78):
+    def _summary_header_left(self, width=78, model_summary_df=None):
         """
         Build the left side of the summary header for generalized models.
 

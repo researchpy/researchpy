@@ -72,7 +72,7 @@ class Anova(OLS):
     Examples
     --------
     >>> import researchpy as rp
-    >>> import pd as pd
+    >>> import pandas as pd
     >>> df = pd.DataFrame({
     ...     'y': [1, 2, 3, 4, 5, 6],
     ...     'group': ['A', 'A', 'B', 'B', 'C', 'C']
@@ -91,7 +91,7 @@ class Anova(OLS):
         if data is None:
             data = {}
 
-        super().__init__(formula_like, data)
+        super().__init__(formula_like, data, display_summary=False)
         self.__name__ = "Researchpy.Anova"
 
         ###########
@@ -497,7 +497,11 @@ class Anova(OLS):
                     factor_effects["Omega squared"].append(float((omega_squared_partial).item()))
 
                 self.factor_effects = factor_effects
-                
+
+
+        # Display the model results summary
+        self.summary()
+
 
     def results(self, return_type="Dataframe", decimals=4, pretty_format=True):
 

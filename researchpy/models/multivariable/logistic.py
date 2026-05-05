@@ -49,7 +49,7 @@ class LogisticRegression(GeneralModel):
     Logistic : Alias for LogisticRegression
     """
 
-    def __init__(self, formula_like, data=None,
+    def __init__(self, formula_like, data=None, display_summary=True,
                  solver_method="mle", solver_options=None,
                  initial_betas=None, initial_betas_method="ols"):
 
@@ -87,6 +87,11 @@ class LogisticRegression(GeneralModel):
 
         # Compute standard errors and statistics
         self._compute_statistics()
+
+
+        # Display the model results summary
+        if display_summary:
+            self.summary()
 
 
 

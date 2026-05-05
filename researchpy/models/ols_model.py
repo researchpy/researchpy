@@ -16,7 +16,7 @@ from researchpy.utility import *
 from researchpy.predict import predict
 
 
-class OLS(CoreModel):
+class OLSModel(CoreModel):
     """
     Ordinary Least Squares (OLS) regression for continuous outcomes.
 
@@ -72,7 +72,7 @@ class OLS(CoreModel):
     Anova : Analysis of Variance (inherits from OLS)
     """
 
-    def __init__(self, formula_like, data=None, conf_level=0.95, display_summary=True):
+    def __init__(self, formula_like, data=None, conf_level=0.95):
 
         if data is None:
             data = {}
@@ -228,8 +228,7 @@ class OLS(CoreModel):
 
 
         # Display the model results summary
-        if display_summary:
-            self.summary()
+        self.summary()
 
 
     def _table_regression_results(self, return_type="Dataframe", pretty_format=True,
@@ -559,7 +558,4 @@ class OLS(CoreModel):
 
 
 
-# Convenience aliases
-LinearRegression = OLS
-LM = OLS
 

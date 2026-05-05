@@ -509,6 +509,9 @@ class CoreModel():
         list of str
             Lines for the left side of the header.
         """
+        if model_summary_df is None:
+            return [self._get_model_display_name()]
+
         return [self._get_model_display_name()]
 
 
