@@ -121,7 +121,7 @@ class LikelihoodRatioTest:
         family = getattr(self.model, '_family', 'binomial')
         link = getattr(self.model, '_link', 'logit')
         DV = self.model.DV
-        nobs = self.model.nobs
+        nobs = self.model.n
 
         # Create intercept-only design matrix
         IV_null = np.ones((nobs, 1))

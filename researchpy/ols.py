@@ -1,4 +1,14 @@
+"""
+Ordinary Least Squares (OLS) Regression
 
+This module provides the OLS class for fitting linear regression models
+using the ordinary least squares method.
+
+DEPRECATION NOTICE:
+    The `decimals` parameter in the `results()` method is deprecated and is being renamed to `table_decimals` in a future version for better clarity and consistency.
+    It is maintained for backward compatibility with v0.3.7.
+
+"""
 
 import numpy
 import scipy.stats

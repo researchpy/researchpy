@@ -1,5 +1,5 @@
 import numpy as np
-from researchpy.models.core_model import CoreModel
+from researchpy.models.base import CoreModel
 
 #from researchpy.objective_functions import likelihood
 from researchpy.objective_functions.likelihood import neg_log_likelihood, gradient_neg_log_likelihood
@@ -18,10 +18,9 @@ class GeneralModel(CoreModel):
     """
 
     def __init__(self, formula_like, data=None, matrix_type=1, conf_level=0.95,
-                 family="gaussian", link="normal",
-                 solver_method="mle",
-                 obj_function="log-likelihood",
-                 solver_options=None):
+                 family="gaussian", link="normal", solver_method="mle", obj_function="log-likelihood",
+                 solver_options=None,
+                 table_decimals=None):
 
         self.__name__ = "Researchpy.GeneralModel"
 
@@ -33,7 +32,8 @@ class GeneralModel(CoreModel):
 
         super().__init__(formula_like=formula_like, data=data, matrix_type=matrix_type, conf_level=conf_level,
                          family=family, link=link, solver_options=solver_options, solver_method=solver_method,
-                         obj_function=obj_function)
+                         obj_function=obj_function,
+                         table_decimals=table_decimals)
 
 
 
@@ -220,7 +220,7 @@ class GeneralModel(CoreModel):
             return descriptives_df.to_string(header=False).split("\n")
 
         # Fallback: build from self attributes
-        lines = [f"Number of obs = {self.nobs:>8}"]
+        lines = [f"Number of obs = {self.n:>8}"]
 
         if hasattr(self, 'LR_chi2'):
             df = getattr(self, 'model_df', '?')
@@ -249,16 +249,9 @@ class GeneralModel(CoreModel):
 
 
     def _table_regression_results(self, report=None, return_type="Dataframe",
-                                  decimals=None,
-                                 pretty_format=True, *args):
-        
-        if decimals is None:
-            decimals = {"Coef.": 2, "Std. Err.": 4, "test_stat": 2, "test_stat_p": 4,
-                        "CI": 2, "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4,
-                        "Sum of Squares": 4, 'Degrees of Freedom': 1,
-                        'Mean Squares': 4, 'Effect size': 4}
+                                  table_decimals=None, pretty_format=True, *args):
 
-        self._CoreModel__table_regression_results(return_type=return_type, pretty_format=pretty_format, decimals=decimals)
+        self._CoreModel__table_regression_results(return_type=return_type, pretty_format=pretty_format, table_decimals=table_decimals)
 
         if return_type == "Dataframe":
             return self._CoreModel__regression_base_table()

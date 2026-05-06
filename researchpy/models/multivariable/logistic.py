@@ -136,7 +136,7 @@ class LogisticRegression(GeneralModel):
                       "Log likelihood = ": [self.logL],
                       "N iterations for optimization convergence = ": [self.nfev]}
 
-        model_description = {"Number of observations = ": [self.nobs],
+        model_description = {"Number of observations = ": [self.n],
                              f"LR Chi^2({self.model_df}) = ": [self.LR_chi2],
                              "Prob > Chi^2 = ": [self.model_p_value]}
 
@@ -186,12 +186,14 @@ class LogisticRegression(GeneralModel):
         -------
         tuple of (descriptives_df, coef_df)
         """
+        #report = getattr(self, '_summary_report', 'or')
+
         import io, contextlib
         with contextlib.redirect_stdout(io.StringIO()):
-            _model_meta_df, model_description_df, coef_df = self.results(
+            model_summary_df, model_description_df, coef_df = self.results(
                 report=report, return_type="Dataframe", pretty_format=True
             )
-        return model_description_df, coef_df
+        return model_summary_df, model_description_df, coef_df
 
 
     def summary(self, total_width=78, return_string=False, report="or", decimals=None):
@@ -218,12 +220,12 @@ class LogisticRegression(GeneralModel):
             Otherwise, prints to terminal and returns None.
         """
         # Store report preference so _get_summary_parts() can pick it up
-        self._summary_report = report
+        #self._summary_report = report
         result = super().summary(total_width=total_width, return_string=return_string, decimals=decimals)
-        del self._summary_report
+        #del self._summary_report
         return result
 
-
+    '''
     def _get_summary_parts(self, **kwargs):
         """
         Return (descriptives_df, coef_df) for the Logistic Regression summary.
@@ -242,6 +244,7 @@ class LogisticRegression(GeneralModel):
                 report=report, return_type="Dataframe", pretty_format=True
             )
         return model_summary_df, model_description_df, coef_df
+    '''
 
 # Convenience alias
 Logistic = LogisticRegression

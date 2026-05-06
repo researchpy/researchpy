@@ -179,7 +179,7 @@ class Anova(OLS):
                         (sum_of_square_factor  + self.model_data["sum_of_square_total"])
                     
                     omega_squared_partial = (degrees_of_freedom_factor * (msr_f - self.model_data["mse"])) / \
-                        ((degrees_of_freedom_factor * msr_f) + (self.nobs - degrees_of_freedom_factor) * self.model_data["mse"])
+                        ((degrees_of_freedom_factor * msr_f) + (self.n - degrees_of_freedom_factor) * self.model_data["mse"])
 
                     
                     # Updating items
@@ -296,7 +296,7 @@ class Anova(OLS):
                     (sum_of_square_factor  + self.model_data["sum_of_square_total"])
                     
                 omega_squared_partial = (degrees_of_freedom_factor * (msr_f - self.model_data["mse"])) / \
-                    ((degrees_of_freedom_factor * msr_f) + (self.nobs - degrees_of_freedom_factor) * self.model_data["mse"])
+                    ((degrees_of_freedom_factor * msr_f) + (self.n - degrees_of_freedom_factor) * self.model_data["mse"])
 
                 
                 # Updating items
@@ -467,7 +467,7 @@ class Anova(OLS):
                     (sum_of_square_factor  + self.model_data["sum_of_square_total"])
                     
                 omega_squared_partial = (degrees_of_freedom_factor * (msr_f - self.model_data["mse"])) / \
-                    ((degrees_of_freedom_factor * msr_f) + (self.nobs - degrees_of_freedom_factor) * self.model_data["mse"])
+                    ((degrees_of_freedom_factor * msr_f) + (self.n - degrees_of_freedom_factor) * self.model_data["mse"])
                 
 
                 
@@ -509,7 +509,7 @@ class Anova(OLS):
 
             descriptives = {
 
-                    "Number of obs = ": self.nobs,
+                    "Number of obs = ": self.n,
                     "Root MSE = ": round(self.model_data["root_mse"], decimals),
                     "R-squared = ": round(self.model_data["r squared"], decimals),
                     "Adj R-squared = ": round(self.model_data["r squared adj."], decimals)
@@ -574,7 +574,7 @@ class Anova(OLS):
 
             descriptives = {
 
-                    "Number of obs = ": self.nobs,
+                    "Number of obs = ": self.n,
                     "Root MSE = ": round(self.model_data["root_mse"], decimals),
                     "R-squared = ": round(self.model_data["r squared"], decimals),
                     "Adj R-squared = ": round(self.model_data["r squared adj."], decimals)

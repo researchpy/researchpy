@@ -52,137 +52,21 @@ class lm(LinearModel):
     """
 
 
-    def __init__(self, formula_like, data={}):
+    def __init__(self, formula_like, data=None, conf_level=0.95, display_summary=True,
+                 table_decimals=None):
 
         self._test_stat_name = "t"
 
-        super().__init__(formula_like, data=None, matrix_type=1, solver_method="ols",
-                         family="gaussian", link="normal", obj_function="numeric")
+        super().__init__(formula_like, data=data, conf_level=conf_level, matrix_type=1, solver_method="ols",
+                         family="gaussian", link="normal", obj_function="numeric",
+                         table_decimals=table_decimals)
 
-        self.__name__ = "Researchpy.lm"
+        #self.__name__ = "rsearchpy.lm"
+        self.__name__ = "rsearchpy.LM"
 
-        # Dictionary for storing model results and information. This will be populated by specific regression model
-        # classes that inherit from this base class.
-        if not hasattr(self, "model_data"):
-            self.model_data = {}
+        if display_summary == True:
+            self.summary(table_decimals=table_decimals)
 
-        ###########
-        # Creating the J matrix
-        J = self._j_matrix(add_to_model_data=False)
-
-        # Creating the identify matrix
-        I = self._identity_matrix(add_to_model_data=False)
-
-        # Calculation of the Hat matrix
-        self._hat_matrix(add_to_model_data=True)
-
-        # OLS fit to calculate betas
-        self._CoreModel__ols_fit()
-
-        # Predicted y values
-        predicted_y = self.IV @ self.model_data["betas"]
-
-        # Calculation of residuals (error)
-        residuals = self.DV - predicted_y
-
-        ###  Sum of Squares
-        # Total sum of squares (SSTO)
-        self.model_data["sum_of_square_total"] = float((self.DV.T @ self.DV - (1/self.nobs) * self.DV.T @ J @ self.DV).item())
-
-        # Model sum of squares (SSR)
-        self.model_data["sum_of_square_model"] = float((self.model_data["betas"].T @ self.IV.T @ self.DV - (1/self.nobs) * self.DV.T @ J @ self.DV).item())
-
-        # Error sum of squares (SSE)
-        self.model_data["sum_of_square_residual"] = float((residuals.T @ residuals).item())
-
-        ### Degrees of freedom
-        # Model
-        self.model_data["degrees_of_freedom_model"] = numpy.linalg.matrix_rank(self.IV) - 1
-
-        # Error
-        self.model_data["degrees_of_freedom_residual"] = self.nobs - numpy.linalg.matrix_rank(self.IV)
-
-        # Total
-        self.model_data["degrees_of_freedom_total"] = self.nobs - 1
-
-        ### Mean Square
-        # Model (MSR)
-        self.model_data["msr"] = self.model_data["sum_of_square_model"] * (1/self.model_data["degrees_of_freedom_model"])
-
-        # Residual (error; MSE)
-        self.model_data["mse"] = self.model_data["sum_of_square_residual"] * (1/self.model_data["degrees_of_freedom_residual"])
-
-        #Total (MST)
-        self.model_data["mst"] = self.model_data["sum_of_square_total"] * (1/self.model_data["degrees_of_freedom_total"])
-
-        ## Root Mean Square Error
-        self.model_data["root_mse"] = float(numpy.sqrt(self.model_data["mse"]))
-
-        ### F-values
-        # Model
-        self.model_data["f_value_model"] = float(self.model_data["msr"] / self.model_data["mse"])
-        self.model_data["f_p_value_model"] = scipy.stats.f.sf( self.model_data["f_value_model"], self.model_data["degrees_of_freedom_model"], self.model_data["degrees_of_freedom_residual"])
-
-        ### Effect Size Measures
-        # Model
-        self.model_data["r squared"] = (self.model_data["sum_of_square_model"] / self.model_data["sum_of_square_total"])
-        self.model_data["r squared adj."] = 1 - (self.model_data["degrees_of_freedom_total"] / self.model_data["degrees_of_freedom_residual"]) * (
-            self.model_data["sum_of_square_residual"] / self.model_data["sum_of_square_total"])
-        self.model_data["Eta squared"] = self.model_data["r squared"]
-
-        self.model_data["Epsilon squared"] = (self.model_data["degrees_of_freedom_model"] * (self.model_data["msr"] - self.model_data["mse"])) / (self.model_data["sum_of_square_total"])
-
-        self.model_data["Omega squared"] = (self.model_data["degrees_of_freedom_model"] * (self.model_data["msr"] - self.model_data["mse"])) / (self.model_data["sum_of_square_total"] + self.model_data["mse"])
-
-        ### Variance-covariance matrices
-        # Non-robust - from Applied Linear Statistical Models, pg. 203
-        self.variance_covariance_residual_matrix = np.matrix(self.model_data["mse"] * (I - self.model_data["H"]))
-
-        try:
-            self.variance_covariance_beta_matrix = np.matrix(
-                self.model_data["mse"] * np.linalg.inv(self.IV.T @ self.IV))
-        except:
-            self.variance_covariance_beta_matrix = np.matrix(
-                self.model_data["mse"] * np.linalg.pinv(self.IV.T @ self.IV))
-
-        #if robust_standard_errors == False:
-            #self.beta_variance_covariance_matrix = np.matrix(self.mse * np.linalg.inv(self.x.T @ self.x))
-        #elif robust_standard_errors == True:
-            ## Not implemented yet so it's same as non-robust
-         #   self.beta_variance_covariance_matrix = np.matrix(self.mse * np.linalg.inv(self.x.T @ self.x))
-
-        ### Standard Errors
-        self.model_data["standard_errors"] = (np.array(np.sqrt(self.variance_covariance_beta_matrix.diagonal()))).T
-
-        ### Confidence Intrvals
-        conf_int_lower = []
-        conf_int_upper = []
-
-        for beta, se in zip(self.model_data["betas"], self.model_data["standard_errors"]):
-
-            try:
-                lower, upper = scipy.stats.t.interval(self._CI_LEVEL, self.model_data["degrees_of_freedom_residual"], loc=beta, scale=se)
-                conf_int_lower.append(float(lower))
-                conf_int_upper.append(float(upper))
-
-            except TypeError:
-                try:
-                    conf_int_lower.append(lower.item())
-                    conf_int_upper.append(upper.item())
-
-                except:
-                    conf_int_lower.append(np.nan)
-                    conf_int_upper.append(np.nan)
-
-        self.model_data["conf_int_lower"] = np.array(conf_int_lower)
-        self.model_data["conf_int_upper"] = np.array(conf_int_upper)
-
-        ### T-stastics
-        self.model_data["test_stat"] = self.model_data["betas"] * (1 / self.model_data["standard_errors"])
-        # Two-sided p-value
-        self.model_data["test_stat_p_values"] = np.array([
-            float((scipy.stats.t.sf(np.abs(t),self.model_data["degrees_of_freedom_residual"]) * 2).item()) for t in self.model_data["test_stat"]
-        ])
 
 
     def results(self, return_type="Dataframe", pretty_format=True,

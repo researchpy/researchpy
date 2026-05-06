@@ -15,7 +15,8 @@ Usage:
 
 """
 
-from researchpy.models.core_model import CoreModel
+from researchpy.models.base import CoreModel
+#from researchpy.models.core_model import CoreModel
 from researchpy.models.general_model import GeneralModel
 
 # Define what gets exported with "from researchpy.models import *"

@@ -10,7 +10,7 @@ import numpy as np
 import scipy.stats
 import pandas as pd
 
-from researchpy.models.core_model import CoreModel
+from researchpy.models.base import CoreModel
 #from researchpy.models.linear_model import LinearModel
 from researchpy.utility import *
 from researchpy.predict import predict
