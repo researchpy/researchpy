@@ -137,7 +137,6 @@ class CoreModel():
 
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
-            #base_table_decimals
 
 
     def _hat_matrix(self, to_return=False, add_to_self=False, add_to_model_data=True):
@@ -179,6 +178,7 @@ class CoreModel():
             J = np.ones((self.n, self.n))
             return J
 
+
     def _identity_matrix(self, add_to_model_data=True):
         if add_to_model_data:
             self.model_data["I"] = np.identity(self.n)
@@ -202,7 +202,6 @@ class CoreModel():
             return np.asarray(eigvals)
 
 
-
     def __ols_fit(self, to_return=False, add_to_self=False, add_to_model_data=True):
         # Eigenvalues
         self.eigvals = self._eigenval_matrix()
@@ -221,7 +220,6 @@ class CoreModel():
 
         if to_return:
             return betas
-
 
 
     def __compute_confidence_intervals(self, add_to_model_data=True):
@@ -249,13 +247,6 @@ class CoreModel():
             self.model_data["conf_int_upper"] = np.array(conf_int_upper)
         else:
             return np.array(conf_int_lower), np.array(conf_int_upper)
-
-
-
-
-
-
-
 
 
     def predict(self, estimate=None, trans=None):
@@ -457,7 +448,6 @@ class CoreModel():
 
         if pretty_format:
             self.__prettify_table_coef()
-
 
 
     def _get_summary_parts(self):

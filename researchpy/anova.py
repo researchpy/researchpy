@@ -14,8 +14,7 @@ import pandas
 
 from researchpy.summary import summarize
 # Import from the new refactored location
-#from researchpy.ols import ols
-from researchpy.models.multivariable.ols import OLS as ols
+from researchpy.ols import ols
 from researchpy.utility import *
 
 warnings.warn(

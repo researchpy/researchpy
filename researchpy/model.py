@@ -58,11 +58,14 @@ class model():
             self.DV, self.IV = patsy.dmatrices(formula_like, data, 1)
         if matrix_type == 0:
             self.DV, self.IV = patsy.dmatrices(formula_like + "- 1", data, 1)
+
         self.nobs = self.IV.shape[0]
+
         # Model design information
         self.formula = formula_like
         self._DV_design_info = self.DV.design_info
         self._IV_design_info = self.IV.design_info
+
         ## My design information ##
         self.DV_name = self.DV.design_info.term_names[0]
         self._patsy_factor_information, self._mapping, self._rp_factor_information = variable_information(
@@ -70,9 +73,4 @@ class model():
             self.IV.design_info.column_names, 
             data
         )
-# Provide aliases for backward compatibility with internal code that may have used these
-# These point to the new refactored classes
-core_model = CoreModel
-general_model = GeneralModel
-# Note: linear_model needs to be refactored into researchpy.models.multivariable.ols
-# For now, we'll need to extract it from the backup if needed
+

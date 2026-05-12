@@ -86,8 +86,8 @@ class Regress(LinearModel):
 
 
         # Display the model results summary
-        #if display_summary:
-        #    self.summary()
+        if display_summary:
+            self.summary()
 
 
     def _table_regression_results(self, return_type="Dataframe", pretty_format=True,
@@ -158,162 +158,9 @@ class Regress(LinearModel):
         return predict(self, estimate=estimate)
 
 
-    def _summary_header_left(self, width=78, model_summary_df=None):
-        """
-        Build the left side of the OLS summary header with an ANOVA source table.
-
-        Shows model name followed by a Source/SS/df/MS table with Model, Residual,
-        and Total rows.
-
-        Parameters
-        ----------
-        width : int
-            Total character width of the output.
-        model_summary_df : DataFrame or None
-            Model summary DataFrame from ``self.results()``.  When None the
-            ANOVA mini-table is skipped (used by Anova subclass).
-
-        Returns
-        -------
-        list of str
-            Lines for the left side of the header.
-        """
-        if model_summary_df is None:
-            return [self._get_model_display_name()]
-
-        lines = []
-        model_display = self._get_model_display_name()
-
-        # Define column widths for ANOVA table
-        col_w = {'source': 10, 'ss': 12, 'df': 4, 'ms': 12}
-        table_w = col_w['source'] + col_w['ss'] + col_w['df'] + col_w['ms'] + 6
-
-        def fmt_num(val, w, d=4):
-            try:
-                return f"{float(val):>{w}.{d}f}"
-            except (ValueError, TypeError):
-                return f"{str(val):>{w}}"
-
-        def fmt_int(val, w):
-            try:
-                return f"{int(val):>{w}}"
-            except (ValueError, TypeError):
-                return f"{str(val):>{w}}"
-
-        sep = "-" * col_w['source'] + "+" + "-" * (table_w - col_w['source'] - 1)
-
-        lines.append(f"{model_display:<{table_w}}")
-        lines.append(
-            f"{'Source':>{col_w['source']}} | "
-            f"{'SS':>{col_w['ss']}} "
-            f"{'df':>{col_w['df']}} "
-            f"{'MS':>{col_w['ms']}}"
-        )
-        lines.append(sep)
-        lines.append(
-            f"{'Model':>{col_w['source']}} | "
-            f"{fmt_num(self.model_data.get('sum_of_square_model', 0), col_w['ss'])} "
-            f"{fmt_int(self.model_data.get('degrees_of_freedom_model', 0), col_w['df'])} "
-            f"{fmt_num(self.model_data.get('msr', 0), col_w['ms'])}"
-        )
-        lines.append(
-            f"{'Residual':>{col_w['source']}} | "
-            f"{fmt_num(self.model_data.get('sum_of_square_residual', 0), col_w['ss'])} "
-            f"{fmt_int(self.model_data.get('degrees_of_freedom_residual', 0), col_w['df'])} "
-            f"{fmt_num(self.model_data.get('mse', 0), col_w['ms'])}"
-        )
-        lines.append(sep)
-        lines.append(
-            f"{'Total':>{col_w['source']}} | "
-            f"{fmt_num(self.model_data.get('sum_of_square_total', 0), col_w['ss'])} "
-            f"{fmt_int(self.model_data.get('degrees_of_freedom_total', 0), col_w['df'])} "
-            f"{fmt_num(self.model_data.get('mst', 0), col_w['ms'])}"
-        )
-
-        return lines
 
 
-    def _splice_f_stat_lines(self):
-        """
-        Return the F-statistic and Prob > F lines for the header right side.
-
-        These are not stored in the descriptives DataFrame, so they are
-        built from ``self.model_data`` and spliced into the header.
-        Shared by OLS and Anova header_right methods.
-
-        Returns
-        -------
-        list of str
-        """
-        df_model = self.model_data.get("degrees_of_freedom_model", 0)
-        df_resid = self.model_data.get("degrees_of_freedom_residual", 0)
-        return [
-            f"F({df_model}, {df_resid}) = "
-            f"{self.model_data.get('f_value_model', 0):>8.2f}",
-            f"Prob > F      = "
-            f"{self.model_data.get('f_p_value_model', 0):>8.4f}",
-        ]
-
-
-    def _summary_header_right(self, width=78, descriptives_df=None):
-        """
-        Build the right side of the OLS summary header with fit statistics.
-
-        When *descriptives_df* is provided the values are read from that
-        DataFrame via ``to_string(header=False)`` so the summary is driven
-        entirely by the DataFrames returned from ``self.results()``.
-
-        Parameters
-        ----------
-        width : int
-            Available character width.
-        descriptives_df : DataFrame or None
-            Descriptives DataFrame from ``self.results()`` (transposed,
-            single-row with stat names as columns).
-
-        Returns
-        -------
-        list of str
-            Lines for the right side of the header.
-        """
-        if descriptives_df is not None:
-            # OLS descriptives_df is transposed: single row, columns = stat names.
-            # Convert to index-oriented for to_string.
-            desc_lines = descriptives_df.T.to_string(header=False).split("\n")
-            return [desc_lines[0]] + self._splice_f_stat_lines() + desc_lines[1:]
-
-        # Fallback: build from self.model_data directly
-        return [
-            f"Number of obs = {self.n:>8}",
-        ] + self._splice_f_stat_lines() + [
-            f"R-squared     = {self.model_data.get('r squared', 0):>8.4f}",
-            f"Adj R-squared = {self.model_data.get('r squared adj.', 0):>8.4f}",
-            f"Root MSE      = {self.model_data.get('root_mse', 0):>8.4f}",
-        ]
-
-
-    def _get_summary_parts(self):
-        """
-        Return (model_description_df, coef_df) for the OLS summary.
-
-        Calls ``self.results()`` with stdout suppressed (to avoid side-effect
-        prints) and unpacks the 3-tuple into the two DataFrames that
-        ``CoreModel.summary()`` needs.
-
-        Returns
-        -------
-        tuple of (model_description_df, coef_df)
-        """
-        import io, contextlib
-        with contextlib.redirect_stdout(io.StringIO()):
-            model_description_df, model_summary_df, coef_df = self.results(
-                return_type="Dataframe", pretty_format=True
-            )
-        return model_summary_df, model_description_df, coef_df
-
-
-
-# Convenience aliases
+# Convenience aliases for users who prefer different naming conventions
 LinearRegression = Regress
 LM = Regress
 
