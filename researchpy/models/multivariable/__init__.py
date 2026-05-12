@@ -31,15 +31,15 @@ Usage:
 
 """
 
-from researchpy.models.multivariable.ols import OLS, LinearRegression, LM
-from researchpy.models.multivariable.lm import lm
+from researchpy.models.multivariable.regress import Regress, LinearRegression, LM
+#from researchpy.models.multivariable.ols import OLS
 from researchpy.models.multivariable.anova import Anova
 from researchpy.models.multivariable.logistic import LogisticRegression, Logistic
 
 # Define what gets exported with "from researchpy.models.multivariable import *"
 __all__ = [
-    # OLS and aliases
-    "OLS",
+    # Regress and aliases
+    "Regress",
     "LinearRegression",
     "LM",
     # ANOVA

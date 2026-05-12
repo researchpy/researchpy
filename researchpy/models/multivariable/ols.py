@@ -11,7 +11,6 @@ import scipy.stats
 import pandas as pd
 
 from researchpy.models.base import CoreModel
-#from researchpy.models.linear_model import LinearModel
 from researchpy.utility import *
 from researchpy.predict import predict
 
@@ -75,8 +74,7 @@ class OLS(CoreModel):
     def __init__(self, formula_like, data=None, conf_level=0.95, display_summary=True,
                  table_decimals=None):
 
-        if data is None:
-            data = {}
+        #if data is None: data = {}
 
         self._test_stat_name = "t"
         self._CI_LEVEL = conf_level
@@ -551,10 +549,4 @@ class OLS(CoreModel):
                 return_type="Dataframe", pretty_format=True
             )
         return model_summary_df, model_description_df, coef_df
-
-
-
-# Convenience aliases
-LinearRegression = OLS
-LM = OLS
 

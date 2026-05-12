@@ -114,28 +114,50 @@ class CoreModel():
 
         ## Creating variable table information
         if not hasattr(self, "regression_table_info"):
-            self.regression_table_info = {self.DV_name: [],
-                                          "Coef.": [],
-                                          "Std. Err.": [],
-                                          f"{self._test_stat_name}": [],
-                                          "p-value": [],
-                                          f"{int(self.CI_LEVEL * 100)}% Conf. Interval": []}
-
-        ## Creating decimals information for summary() and results() methods. This will be used to determine how many
-        # decimal places to round different statistics to when displaying results.
-        base_table_decimals = {
-            "Coef.": 2, "Std. Err.": 4, "test_stat": 2, "test_stat_p": 4, "CI": 2,
-            "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
-            'Degrees of Freedom': 1, 'Mean Squares': 4, 'Effect size': 4
-        }
-        if table_decimals is None:
-            self._table_decimals = base_table_decimals
-        else:
-            self._table_decimals = base_table_decimals | table_decimals
+            self.regression_table_info = {
+                self.DV_name: [],
+                "Coef.": [],
+                "Std. Err.": [],
+                f"{self._test_stat_name}": [],
+                "p-value": [],
+                f"{int(self.CI_LEVEL * 100)}% Conf. Interval": []
+            }
 
 
-    def _hat_matrix(self, add_to_model_data=True):
+        # Checking to see if the `self._table_decimals` attribute is defined. If it's not then create it.
+        # This is used to specify the number of decimal places to round to for different statistics in the summary
+        # table. By defining it in the base class, it allows subclasses to override or update the decimal settings as
+        # needed without having to redefine the entire dictionary.
+        if not hasattr(self, "_table_decimals"):
+            self._table_decimals = {
+                "Coef.": 2, "Std. Err.": 3, "test_stat": 2, "test_stat_p": 4, "CI": 2,
+                "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
+                'Degrees of Freedom': 1, 'Mean Squares': 4, 'Effect size': 4
+            }
+
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
+            #base_table_decimals
+
+
+    def _hat_matrix(self, to_return=False, add_to_self=False, add_to_model_data=True):
+
+        try:
+            H = np.asarray(self.IV) @ np.linalg.inv(np.asarray(self.IV.T) @ np.asarray(self.IV)) @ np.asarray(self.IV.T)
+        except:
+            H = np.asarray(self.IV) @ np.linalg.pinv(np.asarray(self.IV.T) @ np.asarray(self.IV)) @ np.asarray(self.IV.T)
+
+
+        if add_to_self:
+            self.H = H
+
         if add_to_model_data:
+            self.model_data["H"]  = H
+
+        if to_return:
+            return H
+
+        '''if add_to_model_data:
             try:
                 self.model_data["H"] = np.asarray(self.IV) @ np.linalg.inv(np.asarray(self.IV.T) @ np.asarray(self.IV)) @ np.asarray(self.IV.T)
             except:
@@ -147,7 +169,7 @@ class CoreModel():
             except:
                 H = np.asarray(self.IV) @ np.linalg.pinv(np.asarray(self.IV.T) @ np.asarray(self.IV)) @ np.asarray(self.IV.T)
                 #print(f"NOTE: Using pseudo-inverse, smallest eigenvalue is {} ")
-            return H
+            return H'''
 
 
     def _j_matrix(self, add_to_model_data=True):
@@ -308,7 +330,82 @@ class CoreModel():
         table = table[(table.intx == 0) |
                       ((table.intx == 1) & (table.iloc[:, 6] != "(reference)"))]
 
+
         return table.iloc[:, 5:]
+
+
+    def __prettify_table_coef(self):
+
+        dv = list(self.regression_table_info)[0]
+
+        # Creating the first table #
+        terms = (pd.DataFrame.from_dict(self._patsy_factor_information, orient="index")).reset_index()
+        terms.columns = ["term", "term_cleaned"]
+        terms["intx"] = [1 if ":" in t else 0 for t in list(self._patsy_factor_information.keys())]
+        terms["factor"] = [1 if "C(" in t else 0 for t in list(self._patsy_factor_information.keys())]
+
+        # Creating the second table #
+        term_levels = {"term_cleaned"      : [],
+                       "term_level_cleaned": []}
+
+        for key in self._rp_factor_information.keys():
+
+            count = 1
+
+            if key == 'Intercept' or terms[terms.term_cleaned == key].factor.item() == 0:
+                term_levels["term_cleaned"].append(key)
+                term_levels["term_level_cleaned"].append(self._rp_factor_information[key])
+
+            else:
+                for value in self._rp_factor_information[key]:
+
+                    term_levels["term_cleaned"].append(key)
+
+                    if count == 1:
+
+                        term_levels["term_cleaned"].append(key)
+                        term_levels["term_level_cleaned"].append(key)
+                        term_levels["term_level_cleaned"].append(value)
+
+                        count += 1
+                    else:
+                        term_levels["term_level_cleaned"].append(value)
+
+        # Creating the third table #
+        current_terms = (pd.DataFrame.from_dict(self._mapping, orient="index")).reset_index()
+        current_terms.columns = [dv, "term_level_cleaned"]
+        current_terms["term_cleaned"] = [patsy_term_cleaner(key) for key in self._mapping.keys()]
+
+        # Joining the tables together #
+        table = pd.merge(terms, pd.DataFrame.from_dict(term_levels),
+                         how="left", on="term_cleaned")
+
+        table = pd.merge(table, current_terms,
+                         how="left", on=["term_cleaned", "term_level_cleaned"])
+
+        table = pd.merge(table, pd.DataFrame.from_dict(self.regression_table_info),
+                         how="left", on=dv)
+
+        # Cleaning up final table #
+        table[dv] = table["term_level_cleaned"]
+        for col in table.columns[1:]:
+            table[col] = table[col].astype(object)
+
+        ## This is where we can apply pretty_format at the row level of the Coef. Table ##
+        for idx in table.index:
+            if pd.isnull(table.iloc[idx, 6]) and table.iloc[idx][dv] not in list(self._rp_factor_information.keys())[1:]:
+                table.iloc[idx, 6] = "(reference)"
+                table.iloc[idx, 7:] = ""
+
+            else:
+                if table.iloc[idx][dv] in list(self._rp_factor_information.keys())[1:] and pd.isnull(table.iloc[idx, 6]):
+                    table.iloc[idx, 6:] = ""
+
+        table = table[(table.intx == 0) |
+                      ((table.intx == 1) & (table.iloc[:, 6] != "(reference)"))]
+
+
+        self.regression_table_info = table.iloc[:, 5:]
 
 
     def __table_regression_results(self, return_type="Dataframe", pretty_format=True,
@@ -316,11 +413,6 @@ class CoreModel():
 
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
-
-        '''base_decimals = {"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4, "CI": 2,
-                         "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
-                         'Degrees of Freedom': 1,  'Mean Squares': 4, 'Effect size': 4}
-        decimals = base_decimals | decimals'''
 
         try:
             self.regression_table_info[self._DV_design_info.term_names[0]] = self._IV_design_info.column_names
@@ -361,6 +453,12 @@ class CoreModel():
                     self.regression_table_info["p-value"].append(round(p.item(), self._table_decimals["test_stat_p"]))
                     self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci, self._table_decimals["CI"]),
                                                                                                       round(u_ci, self._table_decimals["CI"])])
+
+
+        if pretty_format:
+            self.__prettify_table_coef()
+
+
 
     def _get_summary_parts(self):
         """
@@ -460,7 +558,9 @@ class CoreModel():
         model_display_names = {
             'OLS': 'Linear Regression (OLS)',
             'LinearRegression': 'Linear Regression (OLS)',
+            'lm': 'Linear Regression (OLS)',
             'LM': 'Linear Regression (OLS)',
+            'Regress': 'Linear Regression (OLS)',
             'Anova': 'Analysis of Variance',
             'LogisticRegression': 'Logistic Regression',
             'Logistic': 'Logistic Regression',

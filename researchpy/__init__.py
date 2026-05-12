@@ -14,8 +14,7 @@ from .predict import *
 
 # New modular structure imports
 from .models import CoreModel, GeneralModel
-#from .models.multivariable import OLS, LinearRegression, LM, Anova, LogisticRegression, Logistic
-from .models.multivariable import OLS, LinearRegression, LM, lm, Anova, LogisticRegression, Logistic
+from .models.multivariable import Regress, LinearRegression, LM, Anova, LogisticRegression, Logistic
 
 
 # Legacy MultivariableRegression imports - commented out during refactoring
