@@ -13,6 +13,9 @@ from .signrank import *
 from .predict import *
 
 # New modular structure imports
+#from .core.containerclasses import FitStatistics, ModelResults, TestResults
+
+#from .models import CoreModel, GeneralModel, ModelResults, TestResults
 from .models import CoreModel, GeneralModel
 from .models.multivariable import Regress, LinearRegression, LM, Anova, ANOVA, LogisticRegression, Logistic
 

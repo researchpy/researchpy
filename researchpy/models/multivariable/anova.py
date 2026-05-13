@@ -14,6 +14,7 @@ import patsy
 import pandas as pd
 
 from researchpy.models.linear_model import LinearModel
+from researchpy.core.containerclasses import ModelResults
 from researchpy.utility import rounder, patsy_term_cleaner
 
 
@@ -137,13 +138,14 @@ class Anova(LinearModel):
         residuals = y - predicted_y
         return residuals.T @ residuals
 
+
     def _compute_factor_stats(self, sum_of_square_factor, degrees_of_freedom_factor):
         """
         Compute mean square, F-statistic, p-value, and partial effect size
         measures for a single factor.
 
         All computations use the model-level MSE and SS values stored in
-        ``self.model_data``.
+        ``self.ModelEffects``.
 
         Parameters
         ----------
@@ -157,10 +159,11 @@ class Anova(LinearModel):
         dict
             Keys: 'msr_f', 'f_value', 'f_p_value', 'eta_sq', 'epsilon_sq', 'omega_sq'
         """
-        mse = self.model_data["mse"]
-        ss_residual = self.model_data["sum_of_square_residual"]
-        ss_total = self.model_data["sum_of_square_total"]
-        df_residual = self.model_data["degrees_of_freedom_residual"]
+        me = self.ModelEffects
+        mse = me.mse
+        ss_residual = me.sum_of_square_residual
+        ss_total = me.sum_of_square_total
+        df_residual = me.degrees_of_freedom_residual
 
         # Mean Square - Factor
         msr_f = sum_of_square_factor * (1 / degrees_of_freedom_factor)
@@ -310,6 +313,9 @@ class Anova(LinearModel):
         # Compute factor-level ANOVA effects
         self.factor_effects = self._compute_factor_effects(data, sum_of_squares)
 
+        # Build ModelResults (results() sets self.ModelResults internally)
+        self.results(return_type="Dataframe", pretty_format=True)
+
         # Display the model results summary
         if display_summary:
             self.summary()
@@ -361,7 +367,7 @@ class Anova(LinearModel):
         data : DataFrame or dict
             Data for building design matrices.
         """
-        previous_sse = self.model_data["sum_of_square_total"]
+        previous_sse = self.ModelEffects.sum_of_square_total
         terms_to_include = []
 
         for term in self._IV_design_info.term_names:
@@ -510,7 +516,7 @@ class Anova(LinearModel):
             sse_reduced = self._compute_sse_from_design(x_reduced, self.DV)
 
             # Factor SS = SSE(reduced) - SSE(full model)
-            ss_factor = sse_reduced - self.model_data["sum_of_square_residual"]
+            ss_factor = sse_reduced - self.ModelEffects.sum_of_square_residual
 
             # Degrees of freedom for this factor
             current_term_subset = x_full.design_info.subset(current_term)
@@ -529,7 +535,7 @@ class Anova(LinearModel):
     # ...existing code...
     def results(self, return_type="Dataframe", decimals=4, pretty_format=True):
         """
-        Return the ANOVA results as a descriptives + ANOVA table tuple.
+        Return the ANOVA results as a ``ModelResults`` dataclass.
 
         Parameters
         ----------
@@ -545,19 +551,35 @@ class Anova(LinearModel):
 
         Returns
         -------
-        tuple
-            ``(descriptives, anova_table)`` where each element is a DataFrame
-            (if ``return_type="Dataframe"``) or dict (if ``return_type="Dictionary"``).
+        ModelResults
+            A dataclass with fields:
+            - ``model_name``: ``"Analysis of Variance"``
+            - ``fit_statistics``: Descriptive fit statistics (DataFrame or dict)
+            - ``model_table``: Full ANOVA table with factor rows, effect sizes (DataFrame or dict)
+            - ``coefficients``: ``None`` (ANOVA's primary output is the model_table)
+            - ``details``: ``None``
+
+            Supports tuple unpacking::
+
+                name, fit_stats, anova_table, coefs, details = model.results()
+
+            Or attribute access::
+
+                result = model.results()
+                result.fit_statistics
+                result.model_table
         """
         # Use np.nan for missing cells when not pretty-formatting, '' otherwise
         blank = '' if pretty_format else np.nan
 
+        me = self.ModelEffects
+
         # --- Descriptives (identical for both paths) ---
         descriptives = {
             "Number of obs = ": self.n,
-            "Root MSE = ": round(self.model_data["root_mse"], decimals),
-            "R-squared = ": round(self.model_data["r squared"], decimals),
-            "Adj R-squared = ": round(self.model_data["r squared adj."], decimals),
+            "Root MSE = ": round(me.root_mse, decimals),
+            "R-squared = ": round(me.r_squared, decimals),
+            "Adj R-squared = ": round(me.r_squared_adj, decimals),
         }
 
         # --- ANOVA table columns that always appear ---
@@ -569,18 +591,18 @@ class Anova(LinearModel):
         top_source = ["Model", ''] if pretty_format else ["Model"]
         top_row = {
             "Source": top_source,
-            "Sum of Squares": [round(self.model_data["sum_of_square_model"], decimals)] + ([blank] if pretty_format else []),
-            "Degrees of Freedom": [round(self.model_data["degrees_of_freedom_model"], decimals)] + ([blank] if pretty_format else []),
-            "Mean Squares": [round(self.model_data["msr"], decimals)] + ([blank] if pretty_format else []),
-            "F value": [round(self.model_data["f_value_model"], decimals)] + ([blank] if pretty_format else []),
-            "p-value": [round(self.model_data["f_p_value_model"], decimals)] + ([blank] if pretty_format else []),
+            "Sum of Squares": [round(me.sum_of_square_model, decimals)] + ([blank] if pretty_format else []),
+            "Degrees of Freedom": [round(me.degrees_of_freedom_model, decimals)] + ([blank] if pretty_format else []),
+            "Mean Squares": [round(me.msr, decimals)] + ([blank] if pretty_format else []),
+            "F value": [round(me.model_test_stat, decimals)] + ([blank] if pretty_format else []),
+            "p-value": [round(me.model_test_pval, decimals)] + ([blank] if pretty_format else []),
         }
 
         # Effect size columns only included when pretty_format (backward-compatible)
         if pretty_format:
-            top_row["Eta squared"] = [round(self.model_data["Eta squared"], decimals), blank]
-            top_row["Epsilon squared"] = [round(self.model_data["Epsilon squared"], decimals), blank]
-            top_row["Omega squared"] = [round(self.model_data["Omega squared"], decimals), blank]
+            top_row["Eta squared"] = [round(me.eta_squared, decimals), blank]
+            top_row["Epsilon squared"] = [round(me.epsilon_squared, decimals), blank]
+            top_row["Omega squared"] = [round(me.omega_squared, decimals), blank]
 
         # --- Factor rows ---
         factors = self.factor_effects.copy()
@@ -597,12 +619,12 @@ class Anova(LinearModel):
         n_blank_prefix = 1 if pretty_format else 0
         bottom_row = {
             "Source": bottom_source,
-            "Sum of Squares": [blank] * n_blank_prefix + [round(self.model_data["sum_of_square_residual"], decimals),
-                                                           round(self.model_data["sum_of_square_total"], decimals)],
-            "Degrees of Freedom": [blank] * n_blank_prefix + [round(self.model_data["degrees_of_freedom_residual"], decimals),
-                                                               round(self.model_data["degrees_of_freedom_total"], decimals)],
-            "Mean Squares": [blank] * n_blank_prefix + [round(self.model_data["mse"], decimals),
-                                                         round(self.model_data["mst"], decimals)],
+            "Sum of Squares": [blank] * n_blank_prefix + [round(me.sum_of_square_residual, decimals),
+                                                           round(me.sum_of_square_total, decimals)],
+            "Degrees of Freedom": [blank] * n_blank_prefix + [round(me.degrees_of_freedom_residual, decimals),
+                                                               round(me.degrees_of_freedom_total, decimals)],
+            "Mean Squares": [blank] * n_blank_prefix + [round(me.mse, decimals),
+                                                         round(me.mst, decimals)],
             "F value": [blank] * (n_blank_prefix + 2),
             "p-value": [blank] * (n_blank_prefix + 2),
         }
@@ -618,12 +640,25 @@ class Anova(LinearModel):
             results_dict[col] = top_row[col] + factors[col] + bottom_row[col]
 
         # --- Return ---
+        model_name = self._get_model_display_name()
+
         if return_type == "Dataframe":
-            return (pd.DataFrame.from_dict(descriptives, orient="index"),
-                    pd.DataFrame.from_dict(results_dict))
+            self.ModelResults = ModelResults(
+                model_name=model_name,
+                fit_statistics=pd.DataFrame.from_dict(descriptives, orient="index"),
+                model_table=pd.DataFrame.from_dict(results_dict),
+                coefficients=None,
+            )
+            return self.ModelResults
 
         elif return_type == "Dictionary":
-            return (descriptives, results_dict)
+            self.ModelResults = ModelResults(
+                model_name=model_name,
+                fit_statistics=descriptives,
+                model_table=results_dict,
+                coefficients=None,
+            )
+            return self.ModelResults
 
         else:
             raise ValueError(
@@ -644,30 +679,6 @@ class Anova(LinearModel):
     def predict(self, estimate=None):
         return super().predict(estimate=estimate)
 
-
-    # ------------------------------------------------------------------ #
-    #                   summary() overrides for ANOVA                     #
-    # ------------------------------------------------------------------ #
-    def _get_summary_parts(self):
-        """
-        Return (model_description_df, coef_df) for the ANOVA summary.
-
-        Calls ``self.results()`` with stdout suppressed (to avoid the
-        "Note:" side-effect print) and returns the two DataFrames that
-        ``CoreModel.summary()`` needs.
-
-        Returns
-        -------
-        tuple of (model_description_df, coef_df)
-        """
-        import io, contextlib
-        with contextlib.redirect_stdout(io.StringIO()):
-            model_description_df, coef_df = self.results(
-                return_type="Dataframe", pretty_format=True, decimals=4
-            )
-
-        model_summary_df = None
-        return model_summary_df, model_description_df, coef_df
 
 
     # ------------------------------------------------------------------ #

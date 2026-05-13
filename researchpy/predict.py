@@ -1,4 +1,3 @@
-
 import numpy as np
 import scipy.stats
 import patsy
@@ -22,13 +21,13 @@ def predict_y(mdl_data, trans=None):
     """
 
     if trans is None:
-        y_e = mdl_data.IV @ mdl_data.model_data["betas"]
+        y_e = mdl_data.IV @ mdl_data.CoefResults.betas
 
     else:
-        y_e = trans(mdl_data.IV @ mdl_data.model_data["betas"]) / \
-              (1 + trans(mdl_data.IV @ mdl_data.model_data["betas"]))
+        y_e = trans(mdl_data.IV @ mdl_data.CoefResults.betas) / \
+              (1 + trans(mdl_data.IV @ mdl_data.CoefResults.betas))
 
-        # linear_pred mdl_data.IV @ mdl_data.model_data["betas"]
+        # linear_pred mdl_data.IV @ mdl_data.CoefResults.betas
         # y_e = 1 / (1 + np.exp(-linear_pred))
 
     return y_e
@@ -49,10 +48,20 @@ def residuals(mdl_data):
         Returns an array containing the residuals.
 
     """
-    predicted_y = mdl_data.IV @ mdl_data.model_data["betas"]
+    predicted_y = mdl_data.IV @ mdl_data.CoefResults.betas
     resids = mdl_data.DV - predicted_y
     
     return resids
+
+
+def _compute_hat_matrix(mdl_data):
+    """Compute the hat matrix H = X(X'X)^{-1}X' on-the-fly."""
+    x = np.asarray(mdl_data.IV)
+    try:
+        H = x @ np.linalg.inv(x.T @ x) @ x.T
+    except np.linalg.LinAlgError:
+        H = x @ np.linalg.pinv(x.T @ x) @ x.T
+    return H
 
 
 def standardized_residuals(mdl_data):
@@ -72,10 +81,11 @@ def standardized_residuals(mdl_data):
     """
     resids = residuals(mdl_data)
 
+    H = _compute_hat_matrix(mdl_data)
     std_e = np.sqrt(
-        (mdl_data.model_data["mse"] * (1 - np.diag(mdl_data.model_data["H"]))))
+        (mdl_data.ModelEffects.mse * (1 - np.diag(H))))
 
-    t = resids / np.reshape(std_e, (mdl_data.nobs, 1))
+    t = resids / np.reshape(std_e, (mdl_data.n, 1))
 
     return t
 
@@ -99,7 +109,7 @@ def studentized_residuals(mdl_data):
     d = []
 
     resid_standardized = standardized_residuals(mdl_data)
-    n = mdl_data.nobs
+    n = mdl_data.n
     k = len(mdl_data._IV_design_info.column_names) - 1
 
     for i in range(0, n):
@@ -131,7 +141,8 @@ def leverage(mdl_data):
 
     """
 
-    lev = np.diag(mdl_data.model_data['H']).reshape(mdl_data.nobs, 1)
+    H = _compute_hat_matrix(mdl_data)
+    lev = np.diag(H).reshape(mdl_data.n, 1)
 
     return lev
 

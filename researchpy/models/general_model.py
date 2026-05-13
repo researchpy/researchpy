@@ -44,7 +44,7 @@ class GeneralModel(CoreModel):
 
         if initial_betas is not None:
             if isinstance(initial_betas, np.ndarray) and initial_betas.shape == (self.k, 1):
-                self.model_data["betas"] = initial_betas
+                self.CoefResults.betas = initial_betas
             else:
                 raise ValueError(f"initial_betas must be a numpy array of shape ({self.k}, 1), but got {initial_betas.shape}")
 
@@ -63,7 +63,7 @@ class GeneralModel(CoreModel):
                 if 0 < y_mean < 1:
                     betas[0] = np.log(y_mean / (1 - y_mean))
 
-                self.model_data["betas"] = betas.reshape(-1, 1)
+                self.CoefResults.betas = betas.reshape(-1, 1)
 
 
 
@@ -106,7 +106,7 @@ class GeneralModel(CoreModel):
             # Fit the full model
             result = scipy_minimize(
                 fun=self._neg_log_likelihood,
-                x0=self.model_data["betas"].flatten(),
+                x0=self.CoefResults.betas.flatten(),
                 jac=self._gradient_neg_log_likelihood,
                 method=self.solver_options["algorithm"],
                 options={
@@ -117,7 +117,7 @@ class GeneralModel(CoreModel):
             )
 
             if result.success:
-                self.model_data["betas"] = result.x.reshape(-1, 1)
+                self.CoefResults.betas = result.x.reshape(-1, 1)
                 self.logL.append(-result.fun)
                 self.nfev = result.nfev
                 converged = True
@@ -146,14 +146,15 @@ class GeneralModel(CoreModel):
 
         # Fallback to Newton-Raphson if scipy failed
         if not converged:
-            self.model_data["betas"], self.logL = newton_raphson(
+            betas, self.logL = newton_raphson(
                 IV=self.IV,
                 DV=self.DV,
-                betas=self.model_data["betas"],
+                betas=self.CoefResults.betas,
                 tol=self.solver_options["tol"],
                 max_iter=self.solver_options["max_iter"],
                 display=self.solver_options["display"]
             )
+            self.CoefResults.betas = betas
 
             # Perform Likelihood Ratio Test for Newton-Raphson path
             self.nfev = len(self.logL)
@@ -257,6 +258,58 @@ class GeneralModel(CoreModel):
             return self._CoreModel__regression_base_table()
 
         elif return_type == "Dictionary":
+            return self.regression_table_info
+
+        else:
+            print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
+
+
+
+    def __table_regression_results(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
+
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
+
+        # Build the coefficient table using parent's private method (returns Pandas DataFrame)
+        return self._CoreModel__table_regression_results(return_type=return_type, pretty_format=pretty_format, table_decimals=self._table_decimals)
+
+
+
+
+    def _get_results(self, report_as=None, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
+        """
+        Return the regression results.
+
+        Parameters
+        ----------
+        return_type : str, optional
+            Format of the returned results. Either "Dataframe" or "Dictionary".
+            Default is "Dataframe".
+        pretty_format : bool, optional
+            Whether to format the output for display. Default is True.
+        table_decimals : dict, optional
+            Dictionary specifying decimal places for different statistics.
+
+        Returns
+        -------
+        tuple
+            If return_type is "Dataframe": (descriptives_df, model_results_df, coefficients_df)
+            If return_type is "Dictionary": (descriptives_dict, model_results_dict, coefficients_dict)
+        """
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
+
+
+        # Build the coefficient table
+        result = self.__table_regression_results(return_type=return_type,
+                                        pretty_format=pretty_format,
+                                        table_decimals=self._table_decimals)
+
+
+        if return_type.lower() in ["dataframe", "df", "pandas.dataframe"]:
+            return result if result is not None else self.regression_table_info
+
+        elif return_type.lower() in ["dictionary", "dict"]:
             return self.regression_table_info
 
         else:

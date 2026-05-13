@@ -10,7 +10,6 @@ import numpy as np
 import scipy.stats
 import pandas as pd
 
-#from researchpy.models.base import CoreModel
 from researchpy.models.linear_model import LinearModel
 from researchpy.utility import *
 from researchpy.predict import predict
@@ -42,20 +41,22 @@ class Regress(LinearModel):
 
     Attributes
     ----------
-    model_data : dict
-        Dictionary containing model results including:
-        - 'betas': Estimated coefficients
-        - 'standard_errors': Standard errors of coefficients
-        - 'test_stat': t-statistics
-        - 'test_stat_p_values': p-values for t-tests
-        - 'conf_int_lower', 'conf_int_upper': Confidence interval bounds
-        - 'r squared', 'r squared adj.': R-squared values
-        - 'sum_of_square_total', 'sum_of_square_model', 'sum_of_square_residual'
-        - 'degrees_of_freedom_model', 'degrees_of_freedom_residual', 'degrees_of_freedom_total'
-        - 'msr', 'mse', 'mst': Mean squares
-        - 'root_mse': Root mean square error
-        - 'f_value_model', 'f_p_value_model': F-statistic and p-value
-        - 'Eta squared', 'Epsilon squared', 'Omega squared': Effect sizes
+    ModelEffects : ModelEffects
+        Dataclass containing model-level results including:
+        - sum_of_square_total, sum_of_square_model, sum_of_square_residual
+        - degrees_of_freedom_model, degrees_of_freedom_residual, degrees_of_freedom_total
+        - msr, mse, mst: Mean squares
+        - root_mse: Root mean square error
+        - model_test_stat, model_test_pval: F-statistic and p-value
+        - r_squared, r_squared_adj: R-squared values
+        - eta_squared, epsilon_squared, omega_squared: Effect sizes
+    CoefResults : CoefResults
+        Dataclass containing per-coefficient results including:
+        - betas: Estimated coefficients
+        - std_error: Standard errors of coefficients
+        - test_stat: t-statistics
+        - p_value: p-values for t-tests
+        - conf_int_lower, conf_int_upper: Confidence interval bounds
 
     Examples
     --------
@@ -85,40 +86,21 @@ class Regress(LinearModel):
         self.__name__ = "Researchpy.Regress"
 
 
+        self.ModelFit.model = self.__name__
+        self.ModelFit.model_display_name = self._get_model_display_name()
+
+        # Build ModelResults (results() sets self.ModelResults internally)
+        self.results(return_type="Dataframe", pretty_format=True, table_decimals=table_decimals)
+
         # Display the model results summary
         if display_summary:
             self.summary()
 
 
-    def _table_regression_results(self, return_type="Dataframe", pretty_format=True,
-                                  table_decimals=None, *args):
-        """
-        Build and return the regression results tables.
-
-        This method constructs the coefficient table using the parent class method,
-        then builds the model summary and ANOVA table specific to OLS.
-        """
-
-        if table_decimals is not None:
-            self._table_decimals = self._table_decimals | table_decimals
-
-        # Build the coefficient table using parent's private method
-        self._CoreModel__table_regression_results(return_type=return_type, pretty_format=pretty_format, table_decimals=self._table_decimals)
-
-
-        if return_type == "Dataframe":
-            return self._CoreModel__regression_base_table()
-
-        elif return_type == "Dictionary":
-            return self.regression_table_info
-
-        else:
-            print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
-
 
     def results(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
         """
-        Return the regression results.
+        Return the regression results as a ``ModelResults`` dataclass.
 
         Parameters
         ----------
@@ -126,18 +108,37 @@ class Regress(LinearModel):
             Format of the returned results. Either "Dataframe" or "Dictionary".
             Default is "Dataframe".
         pretty_format : bool, optional
-            Whether to format the output for display. Default is False.
+            Whether to format the output for display. Default is True.
         table_decimals : dict, optional
             Dictionary specifying decimal places for different statistics.
 
         Returns
         -------
-        tuple
-            If return_type is "Dataframe": (descriptives_df, model_results_df, coefficients_df)
-            If return_type is "Dictionary": (descriptives_dict, model_results_dict, coefficients_dict)
+        ModelResults
+            A dataclass with fields:
+            - ``model_name``: ``"Linear Regression (OLS)"``
+            - ``fit_statistics``: Descriptive fit statistics (DataFrame or dict)
+            - ``model_table``: ANOVA decomposition table (DataFrame or dict)
+            - ``coefficients``: Coefficient table (DataFrame or dict)
+            - ``details``: ``None``
+
+            Supports tuple unpacking::
+
+                name, fit_stats, model_table, coefs, details = model.results()
+
+            Or attribute access::
+
+                result = model.results()
+                result.fit_statistics
+                result.coefficients
         """
 
-        return self._get_results(return_type=return_type, pretty_format=pretty_format, table_decimals=table_decimals)
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
+
+        return self._get_results(return_type=return_type,
+                                 pretty_format=pretty_format,
+                                 table_decimals=self._table_decimals)
 
 
 

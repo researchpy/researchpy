@@ -27,3 +27,8 @@ Repository = "https://github.com/researchpy/researchpy.git"
 [tool.setuptools]
 [tool.setuptools.packages.find]
 include = ["researchpy*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.4",
+]

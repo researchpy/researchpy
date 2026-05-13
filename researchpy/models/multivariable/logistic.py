@@ -2,6 +2,7 @@ from scipy.stats import norm
 from scipy.special import expit
 
 from researchpy.models.general_model import GeneralModel
+from researchpy.core.containerclasses import ModelResults
 from researchpy.utility import *
 from researchpy.predict import predict
 
@@ -76,7 +77,6 @@ class LogisticRegression(GeneralModel):
 
         self.__name__ = "Researchpy.LogisticRegression"
 
-        self.model_data = {}
 
 
         # Initializing betas
@@ -88,6 +88,8 @@ class LogisticRegression(GeneralModel):
         # Compute standard errors and statistics
         self._compute_statistics()
 
+        # Build ModelResults (results() sets self.ModelResults internally)
+        self.results(report_as="or", return_type="Dataframe", pretty_format=True)
 
         # Display the model results summary
         if display_summary:
@@ -97,7 +99,7 @@ class LogisticRegression(GeneralModel):
 
     def _compute_statistics(self):
         """Compute standard errors, test statistics, and p-values."""
-        linear_pred = self.IV @ self.model_data["betas"]
+        linear_pred = self.IV @ self.CoefResults.betas
         p = expit(linear_pred)
         w = p * (1 - p).reshape(-1, 1)
         X_w = self.IV * w
@@ -108,95 +110,122 @@ class LogisticRegression(GeneralModel):
         except np.linalg.LinAlgError:
             cov_matrix = np.linalg.pinv(self.IV.T @ X_w)
 
-        self.model_data["standard_errors"] = np.sqrt(np.diag(cov_matrix)).reshape(-1, 1)
+        self.CoefResults.std_error = np.sqrt(np.diag(cov_matrix)).reshape(-1, 1)
 
         # Wald z-statistics and p-values
-        self.model_data["test_stat"] = self.model_data["betas"] / self.model_data["standard_errors"]
-        self.model_data["test_stat_p_values"] = 2 * norm.sf(np.abs(self.model_data["test_stat"]))
+        self.CoefResults.test_stat = self.CoefResults.betas / self.CoefResults.std_error
+        self.CoefResults.p_value = 2 * norm.sf(np.abs(self.CoefResults.test_stat))
 
         # Compute confidence intervals
-        self._CoreModel__compute_confidence_intervals(add_to_model_data=True)
+        self._CoreModel__compute_confidence_intervals()
 
 
 
     def predict(self, estimate=None):
         """Predict probabilities."""
-        linear_pred = self.IV @ self.model_data["betas"]
+        linear_pred = self.IV @ self.CoefResults.betas
         return expit(linear_pred)
 
 
 
-    def results(self, report="or", return_type="Dataframe", pretty_format=True,
-                decimals={"Coef.": 2, "Std. Err.": 4, "test_stat": 2, "test_stat_p": 4, "CI": 2,
-                          "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
-                          'Degrees of Freedom': 1, 'Mean Squares': 4, 'Effect size': 4},
-                *args):
 
-        model_meta = {"Model": ["Logistic Regression"],
-                      "Log likelihood = ": [self.logL],
-                      "N iterations for optimization convergence = ": [self.nfev]}
-
-        model_description = {"Number of observations = ": [self.n],
-                             f"LR Chi^2({self.model_df}) = ": [self.LR_chi2],
-                             "Prob > Chi^2 = ": [self.model_p_value]}
-
-        if report.lower() in ["or", "odds ratio", "odds_ratio"]:
-            if self._beta_type == "coef":
-                self.model_data["betas"] = np.exp(self.model_data["betas"])
-                self.model_data["conf_int_lower"] = np.exp(self.model_data["conf_int_lower"])
-                self.model_data["conf_int_upper"] = np.exp(self.model_data["conf_int_upper"])
-                self._beta_type = "odds ratio"
-
-
-            if return_type == "Dataframe":
-                table = self._table_regression_results(return_type=return_type, pretty_format=pretty_format,
-                                                       decimals=decimals)
-
-                model_meta = pd.DataFrame.from_dict(model_meta, orient='index')
-                model_description = pd.DataFrame.from_dict(model_description, orient='index')
-
-                if self._beta_type == "odds ratio":
-                    return model_meta, model_description, table.rename(columns={"Coef.": "Odds Ratio"})
-                else:
-                    return model_meta, model_description, table
-
-            else:
-                dct = self._table_regression_results(return_type=return_type, pretty_format=pretty_format,
-                                                     decimals=decimals)
-                if self._beta_type == "odds ratio":
-                    dct = {('Odds Ratio' if k == 'Coef.' else k): v for k, v in dct.items()}
-                    return model_meta, model_description, dct
-                else:
-                    return model_meta, model_description, dct
-
-
-    def _get_summary_parts(self, report="or"):
+    def results(self, report_as="or", return_type="Dataframe", pretty_format=True,
+                table_decimals=None, *args):
         """
-        Return (descriptives_df, coef_df) for the Logistic Regression summary.
-
-        Calls ``self.results()`` and unpacks the 3-tuple into the two
-        DataFrames that ``CoreModel.summary()`` needs.
+        Return the logistic regression results as a ``ModelResults`` dataclass.
 
         Parameters
         ----------
-        report : str, optional
-            ``"or"`` for odds ratios (default), ``"coef"`` for raw coefficients.
+        report_as : str, optional
+            ``"or"`` for odds ratios (default), ``"coef"`` for raw log-odds.
+        return_type : str, optional
+            ``"Dataframe"`` (default) or ``"Dictionary"``.
+        pretty_format : bool, optional
+            Whether to format the output for display. Default is True.
+        table_decimals : dict, optional
+            Dictionary specifying decimal places for different statistics.
 
         Returns
         -------
-        tuple of (descriptives_df, coef_df)
+        ModelResults
+            A dataclass with fields:
+            - ``model_name``: ``"Logistic Regression"``
+            - ``fit_statistics``: Combined fit statistics (DataFrame or dict)
+            - ``model_table``: ``None`` (MLE-based model, no SS decomposition)
+            - ``coefficients``: Coefficient / odds ratio table (DataFrame or dict)
+            - ``details``: ``None``
+
+            Supports tuple unpacking::
+
+                name, fit_stats, model_table, coefs, details = model.results()
+
+            Or attribute access::
+
+                result = model.results()
+                result.fit_statistics
+                result.coefficients
         """
-        #report = getattr(self, '_summary_report', 'or')
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
 
-        import io, contextlib
-        with contextlib.redirect_stdout(io.StringIO()):
-            model_summary_df, model_description_df, coef_df = self.results(
-                report=report, return_type="Dataframe", pretty_format=True
+        # Need to convert to odds ratio before calling _get_results()
+        if report_as.lower() in ["or", "odds ratio", "odds_ratio"]:
+            if self._beta_type == "coef":
+                self.CoefResults.betas = np.exp(self.CoefResults.betas)
+                self.CoefResults.conf_int_lower = np.exp(self.CoefResults.conf_int_lower)
+                self.CoefResults.conf_int_upper = np.exp(self.CoefResults.conf_int_upper)
+                self._beta_type = "odds ratio"
+
+        # Combined fit statistics dictionary
+        ll_val = self.logL[-1] if isinstance(self.logL, list) else self.logL
+        fit_statistics_dict = {
+            "Number of observations = ": [self.n],
+            f"LR Chi^2({self.model_df}) = ": [round(float(self.LR_chi2), 4)],
+            "Prob > Chi^2 = ": [round(float(self.model_p_value), 4)],
+            "Log likelihood = ": [round(float(ll_val), 4) if ll_val is not None else None],
+            "N iterations = ": [self.nfev],
+        }
+
+        # Returns as pd.DataFrame by default
+        raw = self._get_results(return_type=return_type, pretty_format=pretty_format,
+                                table_decimals=self._table_decimals)
+
+        # Build coefficient table
+        if return_type == "Dataframe":
+            fit_stats_out = pd.DataFrame.from_dict(fit_statistics_dict, orient='index')
+
+            if self._beta_type == "odds ratio":
+                raw = raw.rename(columns={"Coef.": "Odds Ratio"})
+
+            self.ModelResults = ModelResults(
+                model_name=self._get_model_display_name(),
+                fit_statistics=fit_stats_out,
+                model_table=None,
+                coefficients=raw,
             )
-        return model_summary_df, model_description_df, coef_df
+            return self.ModelResults
+
+        elif return_type == "Dictionary":
+            if self._beta_type == "odds ratio":
+                raw = {('Odds Ratio' if k == 'Coef.' else k): v for k, v in raw.items()}
+
+            self.ModelResults = ModelResults(
+                model_name=self._get_model_display_name(),
+                fit_statistics=fit_statistics_dict,
+                model_table=None,
+                coefficients=raw,
+            )
+            return self.ModelResults
+
+        else:
+            raise ValueError(
+                "Not a valid return type option, please use either "
+                "'Dataframe' or 'Dictionary'."
+            )
 
 
-    def summary(self, total_width=78, return_string=False, report="or", decimals=None):
+
+    def summary(self, total_width=78, return_string=False, report_as="or", table_decimals=None):
         """
         Print a formatted summary of the logistic regression results.
 
@@ -207,10 +236,10 @@ class LogisticRegression(GeneralModel):
         return_string : bool, optional
             If True, returns the formatted string instead of printing.
             Default is False.
-        report : str, optional
+        report_as : str, optional
             ``"or"`` for odds ratios (default), ``"coef"`` for raw
             log-odds coefficients.
-        decimals : dict, optional
+        table_decimals : dict, optional
             Dictionary specifying decimal places for different statistics.
 
         Returns
@@ -219,32 +248,13 @@ class LogisticRegression(GeneralModel):
             If *return_string* is True, returns the formatted summary string.
             Otherwise, prints to terminal and returns None.
         """
-        # Store report preference so _get_summary_parts() can pick it up
-        #self._summary_report = report
-        result = super().summary(total_width=total_width, return_string=return_string, decimals=decimals)
-        #del self._summary_report
-        return result
+        # Ensure ModelResults is up-to-date with the requested report format
+        self.results(report_as=report_as, return_type="Dataframe", pretty_format=True,
+                     table_decimals=table_decimals)
 
-    '''
-    def _get_summary_parts(self, **kwargs):
-        """
-        Return (descriptives_df, coef_df) for the Logistic Regression summary.
+        return super().summary(total_width=total_width, return_string=return_string,
+                               table_decimals=table_decimals)
 
-        Calls ``self.results()`` and unpacks the 3-tuple into the two
-        DataFrames that ``CoreModel.summary()`` needs.
-
-        Returns
-        -------
-        tuple of (descriptives_df, coef_df)
-        """
-        report = getattr(self, '_summary_report', 'or')
-        import io, contextlib
-        with contextlib.redirect_stdout(io.StringIO()):
-            model_summary_df, model_description_df, coef_df = self.results(
-                report=report, return_type="Dataframe", pretty_format=True
-            )
-        return model_summary_df, model_description_df, coef_df
-    '''
 
 # Convenience alias
 Logistic = LogisticRegression

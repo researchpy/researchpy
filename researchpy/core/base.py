@@ -8,8 +8,7 @@ import pandas as pd
 
 from researchpy.utility import *
 from researchpy.predict import predict
-#from researchpy.models.results import ModelResults
-from researchpy.core.containerclasses import ModelFit, ModelEffects, CoefResults, FitStatistics, ModelResults, TestResults
+from researchpy.models.results import ModelResults
 
 from researchpy.optimize.trackers import OptimizationTracker
 
@@ -79,6 +78,7 @@ class CoreModel():
         self.CI_LEVEL = conf_level
         self.conf_level = conf_level
 
+        #self.nobs = self.IV.shape[0]
         self.n, self.k = self.IV.shape
 
         # Model design information
@@ -108,23 +108,10 @@ class CoreModel():
                                                                                                           self.IV.design_info.column_names,
                                                                                                           data)
 
-        # Will be refractoring to use dataclasses to clean up codebase and make it more modular. This ModelFit
-        # dataclass will store the model design information and fit parameters that are common across different
-        # regression models. By centralizing this information in a dataclass, it allows for cleaner code and easier
-        # maintenance, as well as providing a standardized way to access model fit information across different model types.
-        self.ModelFit = ModelFit(
-            formula = formula_like,
-            family = family,
-            link = link,
-            n = self.n,
-            k = self.k,
-            ci_level = conf_level,
-            dv = self.DV.design_info.term_names,
-            iv = self.IV.design_info.term_names
-        )
-
-        self.ModelEffects = ModelEffects()
-        self.CoefResults = CoefResults()
+        # Dictionary for storing model results and information. This will be populated by specific regression model
+        # classes that inherit from this base class.
+        if not hasattr(self, "model_data"):
+            self.model_data = {}
 
         ## Creating variable table information
         if not hasattr(self, "regression_table_info"):
@@ -153,7 +140,7 @@ class CoreModel():
             self._table_decimals = self._table_decimals | table_decimals
 
 
-    def _hat_matrix(self, y=None, x=None, to_return=False, add_to_self=False):
+    def _hat_matrix(self, y=None, x=None, to_return=False, add_to_self=False, add_to_model_data=True):
 
         if y is not None and x is not None:
             try:
@@ -171,84 +158,69 @@ class CoreModel():
         if add_to_self:
             self.H = H
 
+        if add_to_model_data:
+            self.model_data["H"]  = H
+
         if to_return:
             return H
 
 
-    def _j_matrix(self, n=None, to_return=False, add_to_self=False):
-
-        if n is None:
-            n = self.n
-
-        J = np.ones((n, n))
-
-        if add_to_self:
-            self.J = J
-
-        if to_return:
+    def _j_matrix(self, add_to_model_data=True):
+        if add_to_model_data:
+            self.model_data["J"] = np.ones((self.n, self.n))
+        else:
+            J = np.ones((self.n, self.n))
             return J
 
 
-    def _identity_matrix(self, n=None, to_return=False, add_to_self=False):
-
-        if n is None:
-            n = self.n
-
-        I = np.identity(n)
-
-        if add_to_self:
-            self.I = I
-
-        if to_return:
+    def _identity_matrix(self, add_to_model_data=True):
+        if add_to_model_data:
+            self.model_data["I"] = np.identity(self.n)
+        else:
+            I = np.identity(self.n)
             return I
 
 
-
-    def _eigenval_matrix(self, x=None, to_return=False, add_to_self=False):
-
-        if x is None:
-            x = self.IV
+    def _eigenval_matrix(self, to_return=True, add_to_self=False, add_to_model_data=False):
 
         # Eigenvalues
-        eigvals = np.linalg.eigvals(np.asarray(x.T) @ np.asarray(x))
+        eigvals = np.linalg.eigvals(np.asarray(self.IV.T) @ np.asarray(self.IV))
 
         if add_to_self:
             self.eigvals = np.asarray(eigvals)
+
+        if add_to_model_data:
+            self.model_data["Eigenvalues"] = np.asarray(self.eigvals)
 
         if to_return:
             return np.asarray(eigvals)
 
 
-    def __ols_fit(self, y=None, x=None, to_return=False, add_to_self=False):
-
-        if y is None: y = self.DV
-        if x is None: x = self.IV
-
+    def __ols_fit(self, to_return=False, add_to_self=False, add_to_model_data=True):
         # Eigenvalues
-        eigvals = self._eigenval_matrix(to_return=True)
+        self.eigvals = self._eigenval_matrix()
 
         # Estimation of betas
         try:
-            betas = np.linalg.inv((np.asarray(x.T) @ np.asarray(x))) @ np.asarray(x.T) @ np.asarray(y)
+            betas = np.linalg.inv((np.asarray(self.IV.T) @ np.asarray(self.IV))) @ np.asarray(self.IV.T) @ np.asarray(self.DV)
         except:
-            betas = np.linalg.pinv((np.asarray(x.T) @ np.asarray(x))) @ np.asarray(x.T) @ np.asarray(y)
-
-        # Store in CoefResults dataclass
-        self.CoefResults.betas = betas
+            betas = np.linalg.pinv((np.asarray(self.IV.T) @ np.asarray(self.IV))) @ np.asarray(self.IV.T) @ np.asarray(self.DV)
 
         if add_to_self:
             self.betas = betas
 
+        if add_to_model_data:
+            self.model_data["betas"] = betas
 
         if to_return:
             return betas
 
 
-    def __compute_confidence_intervals(self):
+    def __compute_confidence_intervals(self, add_to_model_data=True):
         conf_int_lower = []
         conf_int_upper = []
 
-        for beta, se in zip(self.CoefResults.betas, self.CoefResults.std_error):
+        for beta, se in zip(self.model_data["betas"], self.model_data["standard_errors"]):
 
             try:
                 lower, upper = scipy.stats.norm.interval(self._CI_LEVEL, loc=beta, scale=se)
@@ -264,8 +236,11 @@ class CoreModel():
                     conf_int_lower.append(np.nan)
                     conf_int_upper.append(np.nan)
 
-        self.CoefResults.conf_int_lower = np.array(conf_int_lower)
-        self.CoefResults.conf_int_upper = np.array(conf_int_upper)
+        if add_to_model_data:
+            self.model_data["conf_int_lower"] = np.array(conf_int_lower)
+            self.model_data["conf_int_upper"] = np.array(conf_int_upper)
+        else:
+            return np.array(conf_int_lower), np.array(conf_int_upper)
 
 
     def predict(self, estimate=None, trans=None):
@@ -427,19 +402,19 @@ class CoreModel():
 
         try:
             self.regression_table_info[self._DV_design_info.term_names[0]] = self._IV_design_info.column_names
-            self.regression_table_info["Coef."] = np.round(self.CoefResults.betas.flatten(), self._table_decimals["Coef."]).tolist()
-            self.regression_table_info["Std. Err."] = np.round(self.CoefResults.std_error.flatten(), self._table_decimals["Std. Err."]).tolist()
-            self.regression_table_info[f"{self._test_stat_name}"] = np.round(self.CoefResults.test_stat.flatten(), self._table_decimals["test_stat"]).tolist()
-            self.regression_table_info["p-value"] = np.round(self.CoefResults.p_value.flatten(), self._table_decimals["test_stat_p"]).tolist()
-            self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"] = [list(x) for x in np.round(np.hstack((self.CoefResults.conf_int_lower.flatten().reshape(-1, 1),
-                                                                                                                              self.CoefResults.conf_int_upper.flatten().reshape(-1, 1))), self._table_decimals["CI"]).tolist()]
+            self.regression_table_info["Coef."] = np.round(self.model_data["betas"].flatten(), self._table_decimals["Coef."]).tolist()
+            self.regression_table_info["Std. Err."] = np.round(self.model_data["standard_errors"].flatten(), self._table_decimals["Std. Err."]).tolist()
+            self.regression_table_info[f"{self._test_stat_name}"] = np.round(self.model_data["test_stat"].flatten(), self._table_decimals["test_stat"]).tolist()
+            self.regression_table_info["p-value"] = np.round(self.model_data["test_stat_p_values"].flatten(), self._table_decimals["test_stat_p"]).tolist()
+            self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"] = [list(x) for x in np.round(np.hstack((self.model_data["conf_int_lower"].flatten().reshape(-1, 1),
+                                                                                                                              self.model_data["conf_int_upper"].flatten().reshape(-1, 1))), self._table_decimals["CI"]).tolist()]
 
         except:
             try:
                 for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names,
-                                                                  self.CoefResults.betas, self.CoefResults.std_error,
-                                                                  self.CoefResults.test_stat, self.CoefResults.p_value,
-                                                                  self.CoefResults.conf_int_lower, self.CoefResults.conf_int_upper):
+                                                                  self.model_data["betas"], self.model_data["standard_errors"],
+                                                                  self.model_data["test_stat"], self.model_data["test_stat_p_values"],
+                                                                  self.model_data["conf_int_lower"], self.model_data["conf_int_upper"]):
 
                     self.regression_table_info[self._DV_design_info.term_names[0]].append(column)
                     self.regression_table_info["Coef."].append(round(beta.item(), self._table_decimals["Coef."]))
@@ -450,12 +425,12 @@ class CoreModel():
                                                                                                       round(u_ci.item(), self._table_decimals["CI"])])
             except AttributeError:
                 for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names,
-                                                                  self.CoefResults.betas,
-                                                                  self.CoefResults.std_error,
-                                                                  self.CoefResults.test_stat,
-                                                                  self.CoefResults.p_value,
-                                                                  self.CoefResults.conf_int_lower,
-                                                                  self.CoefResults.conf_int_upper):
+                                                                  self.model_data["betas"],
+                                                                  self.model_data["standard_errors"],
+                                                                  self.model_data["test_stat"],
+                                                                  self.model_data["test_stat_p_values"],
+                                                                  self.model_data["conf_int_lower"],
+                                                                  self.model_data["conf_int_upper"]):
 
                     self.regression_table_info[self._DV_design_info.term_names[0]].append(column)
                     self.regression_table_info["Coef."].append(round(beta.item(), self._table_decimals["Coef."]))
@@ -581,7 +556,6 @@ class CoreModel():
         model_display_names = {
             'OLS': 'Linear Regression (OLS)',
             'LinearRegression': 'Linear Regression (OLS)',
-            'LinearModel': 'Linear Regression (OLS)',
             'lm': 'Linear Regression (OLS)',
             'LM': 'Linear Regression (OLS)',
             'Regress': 'Linear Regression (OLS)',
@@ -621,16 +595,21 @@ class CoreModel():
             Formatted header string.
         """
         left_lines = self._summary_header_left(width, model_summary_df=model_summary_df)
-        right_lines = self._summary_header_right(width, descriptives_df=descriptives_df)
+        right_lines = self._summary_header_right(
+            width, descriptives_df=descriptives_df
+        )
 
         # Pad shorter list to match longer
         max_lines = max(len(left_lines), len(right_lines))
-        while len(left_lines) < max_lines: left_lines.append("")
-        while len(right_lines) < max_lines: right_lines.append("")
+        while len(left_lines) < max_lines:
+            left_lines.append("")
+        while len(right_lines) < max_lines:
+            right_lines.append("")
 
         # Calculate left column width and gap
         left_width = width * 55 // 100
         gap = "    "
+
         combined = []
         for left_text, right_text in zip(left_lines, right_lines):
             combined.append(f"{left_text:<{left_width}}{gap}{right_text}")
@@ -680,7 +659,7 @@ class CoreModel():
         descriptives_df : DataFrame or None, optional
             Descriptives DataFrame from ``self.results()``.  The base
             implementation ignores this; subclasses can use it to render
-            fit statistics from the DataFrame.
+            fit statistics from the DataFrame rather than ``self.model_data``.
 
         Returns
         -------
@@ -688,6 +667,67 @@ class CoreModel():
             Lines for the right side of the header.
         """
         return [f"Number of obs = {self.n:>8}"]
+
+
+    # ------------------------------------------------------------------ #
+    #              Shared formatters for DataFrame.to_string()             #
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _fmt_float(decimals):
+        """Return a ``to_string`` formatter: renders floats or blank for NaN."""
+        def _f(val):
+            try:
+                if pd.isna(val):
+                    return ""
+            except (TypeError, ValueError):
+                pass
+            try:
+                return f"{float(val):.{decimals}f}"
+            except (ValueError, TypeError):
+                return str(val)
+        return _f
+
+    @staticmethod
+    def _fmt_int(val):
+        """``to_string`` formatter: renders integers or blank for NaN."""
+        try:
+            if pd.isna(val):
+                return ""
+        except (TypeError, ValueError):
+            pass
+        try:
+            return f"{int(val)}"
+        except (ValueError, TypeError):
+            return str(val)
+
+    @staticmethod
+    def _fmt_str(val):
+        """``to_string`` formatter: keeps strings, blanks NaN."""
+        if val is None:
+            return ""
+        try:
+            if pd.isna(val):
+                return ""
+        except (TypeError, ValueError):
+            pass
+        return str(val)
+
+    @staticmethod
+    def _fmt_beta(decimals):
+        """``to_string`` formatter: renders '(reference)' strings or float."""
+        def _f(val):
+            if isinstance(val, str):
+                return val  # e.g. "(reference)"
+            try:
+                if pd.isna(val):
+                    return ""
+            except (TypeError, ValueError):
+                pass
+            try:
+                return f"{float(val):.{decimals}f}"
+            except (ValueError, TypeError):
+                return str(val)
+        return _f
 
 
     def _summary_coef_table(self, coef_df, width=78, table_decimals=None):
@@ -802,65 +842,4 @@ class CoreModel():
         lines = [sep, table_str, sep]
 
         return "\n".join(lines)
-
-
-    # ------------------------------------------------------------------ #
-    #              Shared formatters for DataFrame.to_string()           #
-    # ------------------------------------------------------------------ #
-    @staticmethod
-    def _fmt_float(decimals):
-        """Return a ``to_string`` formatter: renders floats or blank for NaN."""
-        def _f(val):
-            try:
-                if pd.isna(val):
-                    return ""
-            except (TypeError, ValueError):
-                pass
-            try:
-                return f"{float(val):.{decimals}f}"
-            except (ValueError, TypeError):
-                return str(val)
-        return _f
-
-    @staticmethod
-    def _fmt_int(val):
-        """``to_string`` formatter: renders integers or blank for NaN."""
-        try:
-            if pd.isna(val):
-                return ""
-        except (TypeError, ValueError):
-            pass
-        try:
-            return f"{int(val)}"
-        except (ValueError, TypeError):
-            return str(val)
-
-    @staticmethod
-    def _fmt_str(val):
-        """``to_string`` formatter: keeps strings, blanks NaN."""
-        if val is None:
-            return ""
-        try:
-            if pd.isna(val):
-                return ""
-        except (TypeError, ValueError):
-            pass
-        return str(val)
-
-    @staticmethod
-    def _fmt_beta(decimals):
-        """``to_string`` formatter: renders '(reference)' strings or float."""
-        def _f(val):
-            if isinstance(val, str):
-                return val  # e.g. "(reference)"
-            try:
-                if pd.isna(val):
-                    return ""
-            except (TypeError, ValueError):
-                pass
-            try:
-                return f"{float(val):.{decimals}f}"
-            except (ValueError, TypeError):
-                return str(val)
-        return _f
 

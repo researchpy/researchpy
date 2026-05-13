@@ -12,6 +12,8 @@ from scipy.optimize import minimize
 from scipy.special import expit
 from scipy.stats import chi2
 
+from researchpy.models.results import TestResults
+
 
 class LikelihoodRatioTest:
     """
@@ -224,7 +226,7 @@ class LikelihoodRatioTest:
 
     def results(self, return_type="Dataframe", decimals=4):
         """
-        Return the likelihood ratio test results.
+        Return the likelihood ratio test results as a ``TestResults`` dataclass.
 
         Parameters
         ----------
@@ -236,8 +238,21 @@ class LikelihoodRatioTest:
 
         Returns
         -------
-        DataFrame or dict
-            Test results including LR chi-squared, degrees of freedom, and p-value.
+        TestResults
+            A dataclass with fields:
+            - ``test_name``: ``"Likelihood Ratio Test"``
+            - ``statistics``: Test statistics (DataFrame or dict)
+            - ``details``: dict with null model info (if available)
+
+            Supports tuple unpacking::
+
+                name, stats, details = lr_test.results()
+
+            Or attribute access::
+
+                result = lr_test.results()
+                result.statistics
+                result.details
         """
         results_dict = {
             "LR Chi-squared": round(self.LR_chi2, decimals),
@@ -247,13 +262,21 @@ class LikelihoodRatioTest:
             "Log-Likelihood (Restricted)": round(self.LL_restricted, decimals)
         }
 
-        if return_type.lower() == "dataframe":
-            return pd.DataFrame.from_dict(results_dict, orient='index', columns=['Value'])
-        elif return_type.lower() == "dictionary":
-            return results_dict
+        if return_type.lower() in ["dataframe", "df"]:
+            statistics = pd.DataFrame.from_dict(results_dict, orient='index', columns=['Value'])
+        elif return_type.lower() in ["dictionary", "dict"]:
+            statistics = results_dict
         else:
-            print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
-            return None
+            raise ValueError(
+                "Not a valid return type option, please use either "
+                "'Dataframe' or 'Dictionary'."
+            )
+
+        return TestResults(
+            test_name="Likelihood Ratio Test",
+            statistics=statistics,
+            details={"null_model": self.null_model} if self.null_model is not None else None,
+        )
 
     def summary(self):
         """Print a formatted summary of the likelihood ratio test."""
