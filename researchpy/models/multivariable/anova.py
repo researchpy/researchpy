@@ -14,7 +14,7 @@ import patsy
 import pandas as pd
 
 from researchpy.models.linear_model import LinearModel
-from researchpy.core.containerclasses import ModelResults
+from researchpy.core.containerclasses import ModelResults, FactorEffects
 from researchpy.utility import rounder, patsy_term_cleaner
 
 
@@ -139,19 +139,19 @@ class Anova(LinearModel):
         return residuals.T @ residuals
 
 
-    def _compute_factor_stats(self, sum_of_square_factor, degrees_of_freedom_factor):
+    def _compute_factor_stats(self, ss_factor, df_factor):
         """
         Compute mean square, F-statistic, p-value, and partial effect size
         measures for a single factor.
 
         All computations use the model-level MSE and SS values stored in
-        ``self.ModelEffects``.
+        ``self. sModelEffects``.
 
         Parameters
         ----------
-        sum_of_square_factor : float or ndarray
+        ss_factor : float or ndarray
             Sum of squares attributable to this factor.
-        degrees_of_freedom_factor : int or float
+        df_factor : int or float
             Degrees of freedom for this factor.
 
         Returns
@@ -161,25 +161,25 @@ class Anova(LinearModel):
         """
         me = self.ModelEffects
         mse = me.mse
-        ss_residual = me.sum_of_square_residual
-        ss_total = me.sum_of_square_total
-        df_residual = me.degrees_of_freedom_residual
+        ss_residual = me.ss_residual
+        ss_total = me.ss_total
+        df_residual = me.df_residual
 
         # Mean Square - Factor
-        msr_f = sum_of_square_factor * (1 / degrees_of_freedom_factor)
+        msr_f = ss_factor * (1 / df_factor)
 
         # F-statistic and p-value
         f_value = msr_f / mse
-        f_p_value = scipy.stats.f.sf(f_value, degrees_of_freedom_factor, df_residual)
+        f_p_value = scipy.stats.f.sf(f_value, df_factor, df_residual)
 
         # Partial Effect Size Measures
-        eta_sq = sum_of_square_factor / (sum_of_square_factor + ss_residual)
+        eta_sq = ss_factor / (ss_factor + ss_residual)
 
-        epsilon_sq = (degrees_of_freedom_factor * (msr_f - mse)) / \
-            (sum_of_square_factor + ss_total)
+        epsilon_sq = (df_factor * (msr_f - mse)) / \
+            (ss_factor + ss_total)
 
-        omega_sq = (degrees_of_freedom_factor * (msr_f - mse)) / \
-            ((degrees_of_freedom_factor * msr_f) + (self.n - degrees_of_freedom_factor) * mse)
+        omega_sq = (df_factor * (msr_f - mse)) / \
+            ((df_factor * msr_f) + (self.n - df_factor) * mse)
 
         return {
             "msr_f": msr_f,
@@ -191,7 +191,7 @@ class Anova(LinearModel):
         }
 
     @classmethod
-    def _append_factor_effects(cls, factor_effects, source, ss_factor,
+    def _append_factor_effects2(cls, factor_effects, source, ss_factor,
                                df_factor, stats):
         """
         Append a single factor's results to the factor_effects accumulator dict.
@@ -220,6 +220,38 @@ class Anova(LinearModel):
         factor_effects["Eta squared"].append(cls._to_scalar(stats["eta_sq"]))
         factor_effects["Epsilon squared"].append(cls._to_scalar(stats["epsilon_sq"]))
         factor_effects["Omega squared"].append(cls._to_scalar(stats["omega_sq"]))
+
+
+    def _append_factor_effects(self, source, ss_factor, df_factor, stats):
+        """
+        Append a single factor's results to the factor_effects accumulator dict.
+
+        Uses ``_to_scalar()`` for safe numeric conversion.
+
+        Parameters
+        ----------
+        factor_effects : dict
+            The accumulator dictionary being built up during ANOVA computation.
+        source : str
+            Term name for this factor.
+        ss_factor : float or ndarray
+            Sum of squares for this factor.
+        df_factor : float or int
+            Degrees of freedom for this factor.
+        stats : dict
+            Output from ``_compute_factor_stats()``.
+        """
+        self.FactorEffects.source.append(source)
+        self.FactorEffects.ss.append(self._to_scalar(ss_factor))
+        self.FactorEffects.df.append(self._to_scalar(df_factor))
+        self.FactorEffects.ms.append(self._to_scalar(stats["msr_f"]))
+        self.FactorEffects.test_stat.append(self._to_scalar(stats["f_value"]))
+        self.FactorEffects.test_pval.append(self._to_scalar(stats["f_p_value"]))
+        self.FactorEffects.eta_squared.append(self._to_scalar(stats["eta_sq"]))
+        self.FactorEffects.epsilon_squared.append(self._to_scalar(stats["epsilon_sq"]))
+        self.FactorEffects.omega_squared.append(self._to_scalar(stats["omega_sq"]))
+
+
 
     @staticmethod
     def _build_type3_terms(term_names):
@@ -269,6 +301,7 @@ class Anova(LinearModel):
     @staticmethod
     def _new_factor_effects_dict():
         """Return a fresh factor_effects accumulator dictionary."""
+        '''
         return {
             "Source": [],
             "Sum of Squares": [],
@@ -280,6 +313,14 @@ class Anova(LinearModel):
             "Epsilon squared": [],
             "Omega squared": [],
         }
+        '''
+        return FactorEffects()
+
+
+    @staticmethod
+    def _new_factor_effects():
+        """Return a fresh factor_effects accumulator dictionary."""
+        return FactorEffects()
 
     # ------------------------------------------------------------------ #
     #                        Constructor                                  #
@@ -308,10 +349,12 @@ class Anova(LinearModel):
             )
 
         # Store for potential re-use / inspection
-        self._sum_of_squares_type = sum_of_squares
+        self.FactorEffects.ss_type = sum_of_squares
+        #self._sum_of_squares_type = sum_of_squares
 
         # Compute factor-level ANOVA effects
-        self.factor_effects = self._compute_factor_effects(data, sum_of_squares)
+        #self.factor_effects = self._compute_factor_effects(data, sum_of_squares)
+        self._compute_factor_effects(data)
 
         # Build ModelResults (results() sets self.ModelResults internally)
         self.results(return_type="Dataframe", pretty_format=True)
@@ -321,7 +364,7 @@ class Anova(LinearModel):
             self.summary()
 
 
-    def _compute_factor_effects(self, data, sum_of_squares):
+    def _compute_factor_effects(self, data):
         """
         Compute per-factor ANOVA statistics based on the requested SS type.
 
@@ -337,21 +380,21 @@ class Anova(LinearModel):
         dict
             The factor_effects dictionary with all per-factor statistics.
         """
-        factor_effects = self._new_factor_effects_dict()
+        #factor_effects = self._new_factor_effects_dict()
 
-        if sum_of_squares in ["I", 1]:
-            self._compute_ss_type1(factor_effects, data)
+        if self.FactorEffects.ss_type in ["I", 1]:
+            self._compute_ss_type1(data)
 
-        elif sum_of_squares in ["II", 2]:
-            self._compute_ss_type2(factor_effects, data)
+        elif self.FactorEffects.ss_type in ["II", 2]:
+            self._compute_ss_type2(data)
 
-        elif sum_of_squares in ["III", 3]:
-            self._compute_ss_type3(factor_effects, data)
+        elif self.FactorEffects.ss_type in ["III", 3]:
+            self._compute_ss_type3(data)
 
-        return factor_effects
+        return self.FactorEffects
 
 
-    def _compute_ss_type1(self, factor_effects, data):
+    def _compute_ss_type1(self, data):
         """
         Compute Type I (Sequential) sum of squares.
 
@@ -367,7 +410,7 @@ class Anova(LinearModel):
         data : DataFrame or dict
             Data for building design matrices.
         """
-        previous_sse = self.ModelEffects.sum_of_square_total
+        previous_sse = self.ModelEffects.ss_total
         terms_to_include = []
 
         for term in self._IV_design_info.term_names:
@@ -398,14 +441,13 @@ class Anova(LinearModel):
             stats = self._compute_factor_stats(ss_factor, df_factor)
 
             # Store results
-            self._append_factor_effects(
-                factor_effects, term, ss_factor, df_factor, stats)
+            self._append_factor_effects(term, ss_factor, df_factor, stats)
 
             # Update previous SSE for next iteration
             previous_sse = current_sse
 
 
-    def _compute_ss_type2(self, factor_effects, data):
+    def _compute_ss_type2(self, data):
         """
         Compute Type II (Hierarchical/Partially Sequential) sum of squares.
 
@@ -464,11 +506,10 @@ class Anova(LinearModel):
             stats = self._compute_factor_stats(ss_factor, df_factor)
 
             # Store results
-            self._append_factor_effects(
-                factor_effects, current_term, ss_factor, df_factor, stats)
+            self._append_factor_effects(current_term, ss_factor, df_factor, stats)
 
 
-    def _compute_ss_type3(self, factor_effects, data):
+    def _compute_ss_type3(self, data):
         """
         Compute Type III (Marginal/Orthogonal) sum of squares.
 
@@ -516,7 +557,7 @@ class Anova(LinearModel):
             sse_reduced = self._compute_sse_from_design(x_reduced, self.DV)
 
             # Factor SS = SSE(reduced) - SSE(full model)
-            ss_factor = sse_reduced - self.ModelEffects.sum_of_square_residual
+            ss_factor = sse_reduced - self.ModelEffects.ss_residual
 
             # Degrees of freedom for this factor
             current_term_subset = x_full.design_info.subset(current_term)
@@ -528,12 +569,10 @@ class Anova(LinearModel):
             stats = self._compute_factor_stats(ss_factor, df_factor)
 
             # Store results
-            self._append_factor_effects(
-                factor_effects, current_term, ss_factor, df_factor, stats)
+            self._append_factor_effects(current_term, ss_factor, df_factor, stats)
 
 
-    # ...existing code...
-    def results(self, return_type="Dataframe", decimals=4, pretty_format=True):
+    def results(self, return_type="Dataframe", table_decimals=None, pretty_format=True):
         """
         Return the ANOVA results as a ``ModelResults`` dataclass.
 
@@ -569,70 +608,10 @@ class Anova(LinearModel):
                 result.fit_statistics
                 result.model_table
         """
-        # Use np.nan for missing cells when not pretty-formatting, '' otherwise
-        blank = '' if pretty_format else np.nan
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
 
-        me = self.ModelEffects
-
-        # --- Descriptives (identical for both paths) ---
-        descriptives = {
-            "Number of obs = ": self.n,
-            "Root MSE = ": round(me.root_mse, decimals),
-            "R-squared = ": round(me.r_squared, decimals),
-            "Adj R-squared = ": round(me.r_squared_adj, decimals),
-        }
-
-        # --- ANOVA table columns that always appear ---
-        base_columns = ["Source", "Sum of Squares", "Degrees of Freedom",
-                        "Mean Squares", "F value", "p-value"]
-        effect_size_columns = ["Eta squared", "Epsilon squared", "Omega squared"]
-
-        # --- Model row ---
-        top_source = ["Model", ''] if pretty_format else ["Model"]
-        top_row = {
-            "Source": top_source,
-            "Sum of Squares": [round(me.sum_of_square_model, decimals)] + ([blank] if pretty_format else []),
-            "Degrees of Freedom": [round(me.degrees_of_freedom_model, decimals)] + ([blank] if pretty_format else []),
-            "Mean Squares": [round(me.msr, decimals)] + ([blank] if pretty_format else []),
-            "F value": [round(me.model_test_stat, decimals)] + ([blank] if pretty_format else []),
-            "p-value": [round(me.model_test_pval, decimals)] + ([blank] if pretty_format else []),
-        }
-
-        # Effect size columns only included when pretty_format (backward-compatible)
-        if pretty_format:
-            top_row["Eta squared"] = [round(me.eta_squared, decimals), blank]
-            top_row["Epsilon squared"] = [round(me.epsilon_squared, decimals), blank]
-            top_row["Omega squared"] = [round(me.omega_squared, decimals), blank]
-
-        # --- Factor rows ---
-        factors = self.factor_effects.copy()
-        factors["Source"] = [patsy_term_cleaner(term)
-                             for term in self._IV_design_info.term_names[1:]]
-        for col in base_columns[1:]:
-            rounder(factors[col], decimals=decimals)
-        if pretty_format:
-            for col in effect_size_columns:
-                rounder(factors[col], decimals=decimals)
-
-        # --- Residual + Total rows ---
-        bottom_source = ['', "Residual", "Total"] if pretty_format else ["Residual", "Total"]
-        n_blank_prefix = 1 if pretty_format else 0
-        bottom_row = {
-            "Source": bottom_source,
-            "Sum of Squares": [blank] * n_blank_prefix + [round(me.sum_of_square_residual, decimals),
-                                                           round(me.sum_of_square_total, decimals)],
-            "Degrees of Freedom": [blank] * n_blank_prefix + [round(me.degrees_of_freedom_residual, decimals),
-                                                               round(me.degrees_of_freedom_total, decimals)],
-            "Mean Squares": [blank] * n_blank_prefix + [round(me.mse, decimals),
-                                                         round(me.mst, decimals)],
-            "F value": [blank] * (n_blank_prefix + 2),
-            "p-value": [blank] * (n_blank_prefix + 2),
-        }
-
-        if pretty_format:
-            for col in effect_size_columns:
-                bottom_row[col] = [blank] * (n_blank_prefix + 2)
-
+        '''
         # --- Assemble the full ANOVA table ---
         all_columns = base_columns + (effect_size_columns if pretty_format else [])
         results_dict = {}
@@ -665,6 +644,16 @@ class Anova(LinearModel):
                 "Not a valid return type option, please use either "
                 "'Dataframe' or 'Dictionary'."
             )
+        '''
+
+
+        return self._get_results(include_test_stat_p=True,
+                                 include_effect_sizes=True,
+                                 factor_effects=True,
+                                 return_type=return_type,
+                                 pretty_format=pretty_format,
+                                 table_decimals=self._table_decimals)
+
 
 
     def regression_table(self, return_type="Dataframe", pretty_format=True,
@@ -691,7 +680,7 @@ class Anova(LinearModel):
         Overrides OLS's mini-ANOVA table because the full ANOVA table
         is already shown in the body section.
         """
-        return [self._get_model_display_name()]
+        return [self._get_model_display_name()] + [f"Number of obs = {self.n}"]
 
 
     def _summary_header_right(self, width=78, descriptives_df=None):
@@ -701,11 +690,13 @@ class Anova(LinearModel):
         Anova's descriptives_df is *index-oriented* (stat names as index,
         values in column 0), unlike OLS's transposed single-row format.
         """
-        if descriptives_df is not None:
-            desc_lines = descriptives_df.to_string(header=False).split("\n")
-            return [desc_lines[0]] + self._splice_f_stat_lines() + desc_lines[1:]
+        #if descriptives_df is not None:
+        #    desc_lines = descriptives_df.to_string(header=False).split("\n")
+        #    return [desc_lines[0]] + self._splice_f_stat_lines() + desc_lines[1:]
 
-        return super()._summary_header_right(width)
+        #return super()._summary_header_right(width)
+        #return [f"Number of obs = {self.n:>8}"]
+        return []
 
 
     # ------------------------------------------------------------------ #
@@ -735,53 +726,14 @@ class Anova(LinearModel):
             Formatted ANOVA table string.
         """
         # ---- Resolve decimal places -------------------------------------
-        base_decimals = {
-            "Sum of Squares": 4, "Degrees of Freedom": 1, "Mean Squares": 4,
-            "test_stat": 4, "test_stat_p": 4, "Effect size": 4,
-        }
         if table_decimals is not None:
-            base_decimals = base_decimals | table_decimals
-        dec = base_decimals
+            self._table_decimals = self._table_decimals | table_decimals
+
 
         # ---- Prepare the DataFrame for display -------------------------
         table = df_results.copy()
+        table = self.ModelResults.model_table.copy()
 
-        # Keep blank separator rows — they are intentional visual spacers
-        # added by results() for a non-cluttered presentation.
-
-        # Rename to shorter column headers
-        table = table.rename(columns={
-            "Sum of Squares":    "SS",
-            "Degrees of Freedom": "df",
-            "Mean Squares":      "MS",
-            "F value":           "F",
-            "p-value":           "p-value",
-            "Eta squared":       "Eta^2",
-            "Epsilon squared":   "Eps^2",
-            "Omega squared":     "Omega^2",
-        })
-
-        # Replace empty strings with NaN so na_rep handles them uniformly
-        table = table.replace("", float("nan"))
-
-        # Coerce numeric columns from object dtype to float so that
-        # to_string() formatters are applied consistently.
-        numeric_cols = ["SS", "df", "MS", "F", "p-value",
-                        "Eta^2", "Eps^2", "Omega^2"]
-        for col in numeric_cols:
-            table[col] = pd.to_numeric(table[col], errors="coerce")
-
-        # ---- Per-column formatters (using shared static methods) -----------
-        formatters = {
-            "SS":      self._fmt_float(dec.get("Sum of Squares", 4)),
-            "df":      self._fmt_int,
-            "MS":      self._fmt_float(dec.get("Mean Squares", 4)),
-            "F":       self._fmt_float(dec.get("test_stat", 4)),
-            "p-value": self._fmt_float(dec.get("test_stat_p", 4)),
-            "Eta^2":   self._fmt_float(dec.get("Effect size", 4)),
-            "Eps^2":   self._fmt_float(dec.get("Effect size", 4)),
-            "Omega^2": self._fmt_float(dec.get("Effect size", 4)),
-        }
 
         # ---- Build the output string -----------------------------------
         sep = "-" * width
@@ -789,7 +741,6 @@ class Anova(LinearModel):
         table_str = table.to_string(
             index=False,
             na_rep="",
-            formatters=formatters,
             justify="right",
         )
 

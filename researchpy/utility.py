@@ -5,15 +5,17 @@ import re
 import itertools
 
 
-def rounder(lst, decimals=4):
+def rounder(lst, decimals=4, in_place=True):
     """
         Iterates through a list and returns the rounded number.
     """
-
-    idx = 0
-    for item in lst:
-        lst[idx] = round(item, decimals)
-        idx += 1
+    if in_place:
+        idx = 0
+        for item in lst:
+            lst[idx] = round(item, decimals)
+            idx += 1
+    else:
+        return [round(item, decimals) for item in lst]
 
 
 def return_numeric(value):

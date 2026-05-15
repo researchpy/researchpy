@@ -144,7 +144,7 @@ class CoreModel():
         # needed without having to redefine the entire dictionary.
         if not hasattr(self, "_table_decimals"):
             self._table_decimals = {
-                "Coef.": 2, "Std. Err.": 3, "test_stat": 2, "test_stat_p": 4, "CI": 2,
+                "Coef.": 2, "Std. Err.": 3, "test_stat": 4, "test_stat_p": 4, "CI": 2,
                 "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
                         'Degrees of Freedom': 1, 'Mean Squares': 4, 'Effect size': 4
             }
@@ -430,7 +430,7 @@ class CoreModel():
             self.regression_table_info["Coef."] = np.round(self.CoefResults.betas.flatten(), self._table_decimals["Coef."]).tolist()
             self.regression_table_info["Std. Err."] = np.round(self.CoefResults.std_error.flatten(), self._table_decimals["Std. Err."]).tolist()
             self.regression_table_info[f"{self._test_stat_name}"] = np.round(self.CoefResults.test_stat.flatten(), self._table_decimals["test_stat"]).tolist()
-            self.regression_table_info["p-value"] = np.round(self.CoefResults.p_value.flatten(), self._table_decimals["test_stat_p"]).tolist()
+            self.regression_table_info["p-value"] = np.round(self.CoefResults.test_pval.flatten(), self._table_decimals["test_stat_p"]).tolist()
             self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"] = [list(x) for x in np.round(np.hstack((self.CoefResults.conf_int_lower.flatten().reshape(-1, 1),
                                                                                                                               self.CoefResults.conf_int_upper.flatten().reshape(-1, 1))), self._table_decimals["CI"]).tolist()]
 
@@ -438,7 +438,7 @@ class CoreModel():
             try:
                 for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names,
                                                                   self.CoefResults.betas, self.CoefResults.std_error,
-                                                                  self.CoefResults.test_stat, self.CoefResults.p_value,
+                                                                  self.CoefResults.test_stat, self.CoefResults.test_pval,
                                                                   self.CoefResults.conf_int_lower, self.CoefResults.conf_int_upper):
 
                     self.regression_table_info[self._DV_design_info.term_names[0]].append(column)
@@ -453,7 +453,7 @@ class CoreModel():
                                                                   self.CoefResults.betas,
                                                                   self.CoefResults.std_error,
                                                                   self.CoefResults.test_stat,
-                                                                  self.CoefResults.p_value,
+                                                                  self.CoefResults.test_pval,
                                                                   self.CoefResults.conf_int_lower,
                                                                   self.CoefResults.conf_int_upper):
 
@@ -552,7 +552,7 @@ class CoreModel():
 
         # === BODY SECTION ===
         output_lines.append(
-            self._summary_coef_table(body_df, total_width, table_decimals=self._table_decimals)
+            self._summary_coef_table(mr.coefficients, total_width, table_decimals=self._table_decimals)
         )
 
 
@@ -659,6 +659,8 @@ class CoreModel():
         list of str
             Lines for the left side of the header.
         """
+
+        # ---- Resolve Conent ----------------------------------
         if model_summary_df is None:
             return [self._get_model_display_name()]
 
@@ -690,6 +692,11 @@ class CoreModel():
         return [f"Number of obs = {self.n:>8}"]
 
 
+    def _summary_head_left(self, width=78, descriptives_df=None):
+        ...
+
+
+
     def _summary_coef_table(self, coef_df, width=78, table_decimals=None):
         """
         Build the coefficient table section of the summary output using
@@ -719,14 +726,6 @@ class CoreModel():
         # ---- Resolve decimal places -------------------------------------
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
-
-        '''base_decimals = {
-            "Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4,
-            "CI": 2,
-        }
-        if decimals is not None:
-            base_decimals = base_decimals | decimals
-        dec = base_decimals'''
 
         table = coef_df.copy()
 

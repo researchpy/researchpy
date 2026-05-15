@@ -136,7 +136,10 @@ class Regress(LinearModel):
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
-        return self._get_results(return_type=return_type,
+        return self._get_results(include_test_stat_p=False,
+                                 include_effect_sizes=True,
+                                 factor_effects=False,
+                                 return_type=return_type,
                                  pretty_format=pretty_format,
                                  table_decimals=self._table_decimals)
 

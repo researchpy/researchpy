@@ -1,8 +1,9 @@
 import patsy
 import pandas as pd
 
+from core import FactorEffects
 from researchpy.models.base import CoreModel
-from researchpy.core.containerclasses import ModelResults
+from researchpy.core.containerclasses import FactorEffects, ModelResults
 from researchpy.utility import *
 
 
@@ -18,11 +19,14 @@ class LinearModel(CoreModel):
                  solver_options={"tol": 1e-7, "max_iter": 300, "display": True},
                  table_decimals=None):
 
+        self.FactorEffects = FactorEffects()
+
         super().__init__(formula_like=formula_like, data=data, matrix_type=matrix_type, conf_level=conf_level,
                          family=family, link=link, solver_method=solver_method, obj_function=obj_function,
                          table_decimals=table_decimals)
 
         self.__name__ = "Researchpy.LinearModel"
+
 
         # OLS fit to compute the coefficients (betas) — stored in self.CoefResults.betas
         self._CoreModel__ols_fit()
@@ -33,74 +37,6 @@ class LinearModel(CoreModel):
 
         # Compute standard errors and confidence intervals — stored in self.CoefResults
         self.__compute_beta_se_and_stats()
-
-
-
-    def _compute_model_stats(self):
-        predicted_y = self.IV @ self.CoefResults.betas  # predicted y values
-        residuals = self.DV - predicted_y  # Calculation of residuals (error)
-
-        J = self._j_matrix(to_return=True)   # Creating the J matrix
-        I = self._identity_matrix(to_return=True)  # Creating the identity matrix
-
-        ### Sum of Squares
-        # Total sum of squares (SSTO)
-        self.ModelEffects.sum_of_square_total = float(
-            (self.DV.T @ self.DV - (1 / self.n) * self.DV.T @ J @ self.DV).item()
-        )
-
-        # Model sum of squares (SSR)
-        self.ModelEffects.sum_of_square_model = float(
-            (self.CoefResults.betas.T @ self.IV.T @ self.DV - (1 / self.n) * self.DV.T @ J @ self.DV).item()
-        )
-
-        # Error sum of squares (SSE)
-        self.ModelEffects.sum_of_square_residual = float((residuals.T @ residuals).item())
-
-        ### Degrees of freedom
-        # Model
-        self.ModelEffects.degrees_of_freedom_model = np.linalg.matrix_rank(self.IV) - 1
-
-        # Error
-        self.ModelEffects.degrees_of_freedom_residual = self.n - np.linalg.matrix_rank(self.IV)
-
-        # Total
-        self.ModelEffects.degrees_of_freedom_total = self.n - 1
-
-        ### Mean Square
-        # Model (MSR)
-        self.ModelEffects.msr = self.ModelEffects.sum_of_square_model * (1 / self.ModelEffects.degrees_of_freedom_model)
-
-        # Residual (error; MSE)
-        self.ModelEffects.mse = self.ModelEffects.sum_of_square_residual * (1 / self.ModelEffects.degrees_of_freedom_residual)
-
-        # Total (MST)
-        self.ModelEffects.mst = self.ModelEffects.sum_of_square_total * (1 / self.ModelEffects.degrees_of_freedom_total)
-
-        ## Root Mean Square Error
-        self.ModelEffects.root_mse = float(np.sqrt(self.ModelEffects.mse))
-
-        ### F-values
-        # Model
-        self.ModelEffects.model_test_stat = float(self.ModelEffects.msr / self.ModelEffects.mse)
-        self.ModelEffects.model_test_pval = scipy.stats.f.sf(self.ModelEffects.model_test_stat,
-                                                              self.ModelEffects.degrees_of_freedom_model,
-                                                              self.ModelEffects.degrees_of_freedom_residual)
-
-        ### Effect Size Measures
-        # Model
-        self.ModelEffects.r_squared = (self.ModelEffects.sum_of_square_model / self.ModelEffects.sum_of_square_total)
-        self.ModelEffects.r_squared_adj = 1 - (
-                    self.ModelEffects.degrees_of_freedom_total / self.ModelEffects.degrees_of_freedom_residual) * (
-                                                    self.ModelEffects.sum_of_square_residual / self.ModelEffects.sum_of_square_total)
-        self.ModelEffects.eta_squared = self.ModelEffects.r_squared
-
-        self.ModelEffects.epsilon_squared = (self.ModelEffects.degrees_of_freedom_model * (
-                    self.ModelEffects.msr - self.ModelEffects.mse)) / (self.ModelEffects.sum_of_square_total)
-
-        self.ModelEffects.omega_squared = (self.ModelEffects.degrees_of_freedom_model * (
-                    self.ModelEffects.msr - self.ModelEffects.mse)) / (
-                                                       self.ModelEffects.sum_of_square_total + self.ModelEffects.mse)
 
 
 
@@ -115,8 +51,8 @@ class LinearModel(CoreModel):
         self.CoefResults.test_stat = self.CoefResults.betas * (1 / self.CoefResults.std_error)
 
         ## Two-sided p-value
-        self.CoefResults.p_value = np.array([
-            float((scipy.stats.t.sf(np.abs(t), self.ModelEffects.degrees_of_freedom_residual) * 2).item())
+        self.CoefResults.test_pval = np.array([
+            float((scipy.stats.t.sf(np.abs(t), self.ModelEffects.df_residual) * 2).item())
             for t in self.CoefResults.test_stat
         ])
 
@@ -165,33 +101,33 @@ class LinearModel(CoreModel):
 
         ### Sum of Squares
         # Total sum of squares (SSTO)
-        self.ModelEffects.sum_of_square_total = float((self.DV.T @ self.DV - (1/self.n) * self.DV.T @ J @ self.DV).item())
+        self.ModelEffects.ss_total = float((self.DV.T @ self.DV - (1/self.n) * self.DV.T @ J @ self.DV).item())
 
         # Model sum of squares (SSR)
-        self.ModelEffects.sum_of_square_model = float((self.CoefResults.betas.T @ self.IV.T @ self.DV - (1/self.n) * self.DV.T @ J @ self.DV).item())
+        self.ModelEffects.ss_model = float((self.CoefResults.betas.T @ self.IV.T @ self.DV - (1/self.n) * self.DV.T @ J @ self.DV).item())
 
         # Error sum of squares (SSE)
-        self.ModelEffects.sum_of_square_residual = float((residuals.T @ residuals).item())
+        self.ModelEffects.ss_residual = float((residuals.T @ residuals).item())
 
         ### Degrees of freedom
         # Model
-        self.ModelEffects.degrees_of_freedom_model = return_numeric(np.linalg.matrix_rank(self.IV) - 1)
+        self.ModelEffects.df_model = return_numeric(np.linalg.matrix_rank(self.IV) - 1)
 
         # Error
-        self.ModelEffects.degrees_of_freedom_residual = return_numeric(self.n - np.linalg.matrix_rank(self.IV))
+        self.ModelEffects.df_residual = return_numeric(self.n - np.linalg.matrix_rank(self.IV))
 
         # Total
-        self.ModelEffects.degrees_of_freedom_total = return_numeric(self.n - 1)
+        self.ModelEffects.df_total = return_numeric(self.n - 1)
 
         ### Mean Square
         # Model (MSR)
-        self.ModelEffects.msr = return_numeric(self.ModelEffects.sum_of_square_model * (1/self.ModelEffects.degrees_of_freedom_model))
+        self.ModelEffects.msr = return_numeric(self.ModelEffects.ss_model * (1/self.ModelEffects.df_model))
 
         # Residual (error; MSE)
-        self.ModelEffects.mse = return_numeric(self.ModelEffects.sum_of_square_residual * (1/self.ModelEffects.degrees_of_freedom_residual))
+        self.ModelEffects.mse = return_numeric(self.ModelEffects.ss_residual * (1/self.ModelEffects.df_residual))
 
         #Total (MST)
-        self.ModelEffects.mst = return_numeric(self.ModelEffects.sum_of_square_total * (1/self.ModelEffects.degrees_of_freedom_total))
+        self.ModelEffects.mst = return_numeric(self.ModelEffects.ss_total * (1/self.ModelEffects.df_total))
 
         ## Root Mean Square Error
         self.ModelEffects.root_mse = float(np.sqrt(self.ModelEffects.mse))
@@ -199,103 +135,28 @@ class LinearModel(CoreModel):
 
         ### F-values
         # Model
-        self.ModelEffects.model_test_stat = float(self.ModelEffects.msr / self.ModelEffects.mse)
-        self.ModelEffects.model_test_pval = return_numeric(scipy.stats.f.sf(self.ModelEffects.model_test_stat,
-                                                                            self.ModelEffects.degrees_of_freedom_model,
-                                                                            self.ModelEffects.degrees_of_freedom_residual)
+        self.ModelEffects.test_stat = float(self.ModelEffects.msr / self.ModelEffects.mse)
+        self.ModelEffects.test_pval = return_numeric(scipy.stats.f.sf(self.ModelEffects.test_stat,
+                                                                            self.ModelEffects.df_model,
+                                                                            self.ModelEffects.df_residual)
                                                            )
 
 
         ### Effect Size Measures
         # Model
-        self.ModelEffects.r_squared = return_numeric(self.ModelEffects.sum_of_square_model / self.ModelEffects.sum_of_square_total)
-        self.ModelEffects.r_squared_adj = 1 - (self.ModelEffects.degrees_of_freedom_total / self.ModelEffects.degrees_of_freedom_residual) * (
-            self.ModelEffects.sum_of_square_residual / self.ModelEffects.sum_of_square_total)
+        self.ModelEffects.r_squared = return_numeric(self.ModelEffects.ss_model / self.ModelEffects.ss_total)
+        self.ModelEffects.r_squared_adj = 1 - (self.ModelEffects.df_total / self.ModelEffects.df_residual) * (
+            self.ModelEffects.ss_residual / self.ModelEffects.ss_total)
         self.ModelEffects.eta_squared = self.ModelEffects.r_squared
 
-        self.ModelEffects.epsilon_squared = (self.ModelEffects.degrees_of_freedom_model * (self.ModelEffects.msr - self.ModelEffects.mse)) / (self.ModelEffects.sum_of_square_total)
+        self.ModelEffects.epsilon_squared = (self.ModelEffects.df_model * (self.ModelEffects.msr - self.ModelEffects.mse)) / (self.ModelEffects.ss_total)
 
-        self.ModelEffects.omega_squared = (self.ModelEffects.degrees_of_freedom_model * (self.ModelEffects.msr - self.ModelEffects.mse)) / (self.ModelEffects.sum_of_square_total + self.ModelEffects.mse)
+        self.ModelEffects.omega_squared = (self.ModelEffects.df_model * (self.ModelEffects.msr - self.ModelEffects.mse)) / (self.ModelEffects.ss_total + self.ModelEffects.mse)
 
 
     def _regression_base_table(self):
 
         self._CoreModel__regression_base_table()
-
-
-    def __table_model_anova(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
-
-        if table_decimals is not None:
-            self._table_decimals = self._table_decimals | table_decimals
-
-        me = self.ModelEffects
-
-        # Constructing the model's metadata table (description), and anova table
-        descriptives = {
-            "Number of obs": self.n,
-            "Root MSE": round(me.root_mse, self._table_decimals.get("Root MSE", 4)),
-            "R-squared": round(me.r_squared, self._table_decimals.get("R-squared", 4)),
-            "Adj R-squared": round(me.r_squared_adj, self._table_decimals.get("Adj R-squared", 4))
-        }
-
-        top = {
-            "Source": ["Model"],
-            "Sum of Squares": [round(me.sum_of_square_model, self._table_decimals.get("Sum of Squares", 4))],
-            "Degrees of Freedom": [round(me.degrees_of_freedom_model,
-                                         self._table_decimals.get("Degrees of Freedom", 4))],
-            "Mean Squares": [round(me.msr, self._table_decimals.get("Mean Squares", 4))],
-            "F value": [round(me.model_test_stat, self._table_decimals.get("test_stat", 4))],
-            "p-value": [round(me.model_test_pval, self._table_decimals.get("test_stat_p", 4))],
-            "Eta squared": [round(me.eta_squared, self._table_decimals.get("Effect size", 4))],
-            "Epsilon squared": [
-                round(me.epsilon_squared, self._table_decimals.get("Effect size", 4))],
-            "Omega squared": [round(me.omega_squared, self._table_decimals.get("Effect size", 4))]
-        }
-
-        bottom = {
-            "Source": ["Residual", "Total"],
-            "Sum of Squares": [
-                round(me.sum_of_square_residual, self._table_decimals.get("Sum of Squares", 4)),
-                round(me.sum_of_square_total, self._table_decimals.get("Sum of Squares", 4))],
-            "Degrees of Freedom": [round(me.degrees_of_freedom_residual,
-                                         self._table_decimals.get("Degrees of Freedom", 4)),
-                                   round(me.degrees_of_freedom_total,
-                                         self._table_decimals.get("Degrees of Freedom", 4))],
-            "Mean Squares": [round(me.mse, self._table_decimals.get("Mean Squares", 4)),
-                             round(me.mst, self._table_decimals.get("Mean Squares", 4))],
-            "F value": ['', ''],
-            "p-value": ['', ''],
-            "Eta squared": ['', ''],
-            "Epsilon squared": ['', ''],
-            "Omega squared": ['', '']
-        }
-
-        if not pretty_format:
-            bottom["F value"]= [np.nan, np.nan]
-            bottom["p-value"]= [np.nan, np.nan]
-            bottom["Eta squared"]= [np.nan, np.nan]
-            bottom["Epsilon squared"]= [np.nan, np.nan]
-            bottom["Omega squared"]= [np.nan, np.nan]
-
-
-        model_results = {
-            "Source": top["Source"] + bottom["Source"],
-            "Sum of Squares": top["Sum of Squares"] + bottom["Sum of Squares"],
-            "Degrees of Freedom": top["Degrees of Freedom"] + bottom["Degrees of Freedom"],
-            "Mean Squares": top["Mean Squares"] + bottom["Mean Squares"],
-            "F value": top["F value"] + bottom["F value"],
-            "p-value": top["p-value"] + bottom["p-value"],
-            "Eta squared": top["Eta squared"] + bottom["Eta squared"],
-            "Epsilon squared": top["Epsilon squared"] + bottom["Epsilon squared"],
-            "Omega squared": top["Omega squared"] + bottom["Omega squared"]
-        }
-
-        if return_type == "Dataframe":
-            descriptives_df = pd.DataFrame.from_dict(descriptives, orient="index")
-            model_results_df = pd.DataFrame.from_dict(model_results)
-            return descriptives_df.T, model_results_df
-        else:
-            return descriptives, model_results
 
 
     def __table_fit_statistics(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
@@ -306,90 +167,127 @@ class LinearModel(CoreModel):
         me = self.ModelEffects
 
         # Constructing the model's metadata table (description), and anova table
-        df_model = round(me.degrees_of_freedom_model,
+        df_model = round(me.df_model,
                          self._table_decimals.get("Degrees of Freedom", 1))
-        df_resid = round(me.degrees_of_freedom_residual,
+        df_resid = round(me.df_residual,
                          self._table_decimals.get("Degrees of Freedom", 1))
-        test_stat_model = round(me.model_test_stat, self._table_decimals.get("test_stat", 4))
-        test_pval_model = round(me.model_test_pval, self._table_decimals.get("test_stat_p", 4))
+        test_stat_model = round(me.test_stat, self._table_decimals.get("test_stat", 4))
+        test_pval_model = round(me.test_pval, self._table_decimals.get("test_stat_p", 4))
         fit_statistics = {
-            "nobs": [f"N = {self.n}"],
-            "model_test_stat": [f"F({df_model}, {df_resid}) = {test_stat_model}"],
-            "model_test_pval": [f"Prob > F = {test_pval_model}"],
-            "rootmse": [f"Root MSE = {round(me.root_mse, self._table_decimals.get('Root MSE', 4))}"],
-            "r_squared": [
+            "0": [f"N = {self.n}"],
+            "1": [f"F({df_model}, {df_resid}) = {test_stat_model}"],
+            "2": [f"Prob > F = {test_pval_model}"],
+            "3": [f"Root MSE = {round(me.root_mse, self._table_decimals.get('Root MSE', 4))}"],
+            "4": [
                 f"R-squared = {round(me.r_squared, self._table_decimals.get('R-squared', 4))}"],
-            "r_squared_adj": [f"Adj R-squared = {round(me.r_squared_adj, self._table_decimals.get('Adj R-squared', 4))}"]
+            "5": [f"Adj R-squared = {round(me.r_squared_adj, self._table_decimals.get('Adj R-squared', 4))}"]
         }
 
 
-        '''fit_statistics = {
-            "nobs": ["N observations = ", f"{self.n}"],
-            "model_test_stat": [f"F({df_model}, {df_resid}) = ", f"{test_stat_model}"],
-            "model_test_pval": [f"Prob > F = ", f"{test_pval_model}"],
-            "rootmse": [f"Root MSE = ", f"{round(me.root_mse, self._table_decimals.get('Root MSE', 4))}"],
-            "r_squared": [f"R-squared = ", f"{round(me.r_squared, self._table_decimals.get('R-squared', 4))}"],
-            "r_squared_adj": [f"Adj R-squared = ", f"{round(me.r_squared_adj, self._table_decimals.get('Adj R-squared', 4))}"]
-        }'''
-
-
         if return_type == "Dataframe":
-            fit_statistics_df = pd.DataFrame.from_dict(fit_statistics, orient="index").rename(columns={0: 'Model Fit Statistics'})
-
-            #fit_statistics_df = pd.DataFrame.from_dict(fit_statistics, orient="index").rename(columns={0: 'Model', 1: 'Statistics'})
+            fit_statistics_df = pd.DataFrame.from_dict(fit_statistics, orient="index").rename(columns={0: ''})
             return fit_statistics_df
         else:
             return fit_statistics
 
 
-    def __table_model(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
+
+    def __table_model(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
+                      return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
 
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
-        me = self.ModelEffects
+        # Use np.nan for missing cells when not pretty-formatting, '' otherwise
         blank = '' if pretty_format else np.nan
 
-        # Constructing the model's metadata table (description), and anova table
+        # --- Sum of Squares/ANOVA table columns that always appear ---
+        base_columns_mapping = {
+            "Source": "Source",
+            "Sum of Squares": "SS",
+            "Degrees of Freedom": "DF",
+            "Mean Squares": "MS",
+        }
+        test_columns_mapping = {
+            "test_stat": "F value",
+            "test_pval": "p-value",
+        }
+        effect_size_column_mapping = {
+            "Eta squared": "Eta^2",
+            "Epsilon squared": "Epsilon^2",
+            "Omega squared": "Omega^2"
+        }
+        table_columns_mapping = base_columns_mapping.copy() | (test_columns_mapping.copy() if include_test_stat_p else {}) | (effect_size_column_mapping.copy() if include_effect_sizes else {})
+
+        # --- Top + Model rows ---
+        top_source = ["Model", ''] if pretty_format else ["Model"]
         top = {
-            "Source": ["Model"],
-            "Sum of Squares": [round(me.sum_of_square_model, self._table_decimals.get("Sum of Squares", 4))],
-            "Degrees of Freedom": [round(me.degrees_of_freedom_model,
-                                         self._table_decimals.get("Degrees of Freedom", 4))],
-            "Mean Squares": [round(me.msr, self._table_decimals.get("Mean Squares", 4))],
-            "Eta squared": [round(me.eta_squared, self._table_decimals.get("Effect size", 4))],
-            "Epsilon squared": [
-                round(me.epsilon_squared, self._table_decimals.get("Effect size", 4))],
-            "Omega squared": [round(me.omega_squared, self._table_decimals.get("Effect size", 4))]
+            "Source": top_source,
+            "SS": [round(self.ModelEffects.ss_model, self._table_decimals.get("Sum of Squares", 4))] + ([blank] if pretty_format else []),
+            "DF": [round(self.ModelEffects.df_model, self._table_decimals.get("Degrees of Freedom", 4))] + ([blank] if pretty_format else []),
+            "MS": [round(self.ModelEffects.msr, self._table_decimals.get("Mean Squares", 4))] + ([blank] if pretty_format else []),
         }
 
+        # --- IV rows ---
+        if factor_effects:
+            middle = {}
+
+            for k, col in base_columns_mapping.items():
+                if k == "Source":
+                    middle["Source"] = [patsy_term_cleaner(term) for term in getattr(self.FactorEffects, k.lower())] + ([blank] if pretty_format else [])
+                else:
+                    dt = getattr(self.FactorEffects, col.lower())
+                    middle[col] = rounder(dt, self._table_decimals.get(col, 4), in_place=False) + ([blank] if pretty_format else [])
+        else:
+            middle = None
+
+        # --- Bottom + Residual & Total rows ---
+        n_blank_prefix = 1 if pretty_format else 0
         bottom = {
             "Source": ["Residual", "Total"],
-            "Sum of Squares": [
-                round(me.sum_of_square_residual, self._table_decimals.get("Sum of Squares", 4)),
-                round(me.sum_of_square_total, self._table_decimals.get("Sum of Squares", 4))],
-            "Degrees of Freedom": [round(me.degrees_of_freedom_residual,
-                                         self._table_decimals.get("Degrees of Freedom", 4)),
-                                   round(me.degrees_of_freedom_total,
-                                         self._table_decimals.get("Degrees of Freedom", 4))],
-            "Mean Squares": [round(me.mse, self._table_decimals.get("Mean Squares", 4)),
-                             round(me.mst, self._table_decimals.get("Mean Squares", 4))],
-            "Eta squared": [blank, blank],
-            "Epsilon squared": [blank, blank],
-            "Omega squared": [blank, blank]
+            "SS": [round(self.ModelEffects.ss_residual,
+                         self._table_decimals.get("Sum of Squares", 4)),
+                   round(self.ModelEffects.ss_total,
+                         self._table_decimals.get("Sum of Squares", 4))],
+            "DF": [round(self.ModelEffects.df_residual,
+                         self._table_decimals.get("Degrees of Freedom", 4)),
+                   round(self.ModelEffects.df_total,
+                         self._table_decimals.get("Degrees of Freedom", 4))],
+            "MS": [round(self.ModelEffects.mse, self._table_decimals.get("Mean Squares", 4)),
+                   round(self.ModelEffects.mst, self._table_decimals.get("Mean Squares", 4))],
         }
 
+        # --- Adding F and p-values if requested ---
+        if include_test_stat_p:
+            for k, v in test_columns_mapping.items():
+                attr_name = k.lower().replace(" ", "_")
+                top[v] = [round(getattr(self.ModelEffects, attr_name), self._table_decimals.get(k, 4))] + ([blank] if pretty_format else [])
+                bottom[v] = [blank] * (n_blank_prefix * 2)
 
-        model_results = {
-            "Source": top["Source"] + bottom["Source"],
-            "Sum of Squares": top["Sum of Squares"] + bottom["Sum of Squares"],
-            "Degrees of Freedom": top["Degrees of Freedom"] + bottom["Degrees of Freedom"],
-            "Mean Squares": top["Mean Squares"] + bottom["Mean Squares"],
-            "Eta squared": top["Eta squared"] + bottom["Eta squared"],
-            "Epsilon squared": top["Epsilon squared"] + bottom["Epsilon squared"],
-            "Omega squared": top["Omega squared"] + bottom["Omega squared"]
-        }
+                if factor_effects:
+                    dt = getattr(self.FactorEffects, attr_name)
+                    middle[v] = rounder(dt, self._table_decimals.get(k, 4), in_place=False) + ([blank] if pretty_format else [])
 
+
+        # --- Adding effect size columns if requested ---
+        if include_effect_sizes:
+            for k, v in effect_size_column_mapping.items():
+                attr_name = k.lower().replace(" ", "_")
+                top[v] = [round(getattr(self.ModelEffects, attr_name), self._table_decimals.get("Effect size", 4))] + ([blank] if pretty_format else [])
+                bottom[v] = [blank] * (n_blank_prefix * 2)
+
+                if factor_effects:
+                    dt = getattr(self.FactorEffects, attr_name)
+                    middle[v] = rounder(dt, self._table_decimals.get("Effect size", 4), in_place=False) + ([blank] if pretty_format else [])
+
+
+        # --- Combine parts of the table ---
+        model_results = {}
+        for col in list(table_columns_mapping.values()):
+            model_results[col] = top[col] + (middle[col] if factor_effects else []) + bottom[col]
+
+
+        # --- Returning results in the requested format ---
         if return_type == "Dataframe":
             model_results_df = pd.DataFrame.from_dict(model_results)
             return model_results_df
@@ -406,7 +304,8 @@ class LinearModel(CoreModel):
         return self._CoreModel__table_regression_results(return_type=return_type, pretty_format=pretty_format, table_decimals=self._table_decimals)
 
 
-    def _get_ModelResults(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
+    def _get_ModelResults(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
+                          return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
         """
         Return the regression results.
 
@@ -434,15 +333,14 @@ class LinearModel(CoreModel):
 
 
         # Build the model description, and anova table
-        fit_statistics, model_table = self.__table_model_anova(return_type=return_type,
-                                                               pretty_format=pretty_format,
-                                                               table_decimals=self._table_decimals)
-
         fit_statistics = self.__table_fit_statistics(return_type=return_type,
                                                      pretty_format=pretty_format,
                                                      table_decimals=self._table_decimals)
 
-        model_table = self.__table_model(return_type=return_type,
+        model_table = self.__table_model(include_test_stat_p=include_test_stat_p,
+                                         include_effect_sizes=include_effect_sizes,
+                                         factor_effects=factor_effects,
+                                         return_type=return_type,
                                          pretty_format=pretty_format,
                                          table_decimals=self._table_decimals)
 
@@ -461,7 +359,8 @@ class LinearModel(CoreModel):
         return self.ModelResults
 
 
-    def _get_results(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
+    def _get_results(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
+                     return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
         """
         Return the regression results.
 
@@ -484,7 +383,10 @@ class LinearModel(CoreModel):
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
-        mr = self._get_ModelResults(return_type=return_type,
+        mr = self._get_ModelResults(include_test_stat_p=include_test_stat_p,
+                                    include_effect_sizes=include_effect_sizes,
+                                    factor_effects=factor_effects,
+                                    return_type=return_type,
                                     pretty_format=pretty_format,
                                     table_decimals=self._table_decimals)
 
@@ -550,25 +452,84 @@ class LinearModel(CoreModel):
         me = self.ModelEffects
         lines.append(
             f"{'Model':>{col_w['source']}} | "
-            f"{fmt_num(me.sum_of_square_model or 0, col_w['ss'])} "
-            f"{fmt_int(me.degrees_of_freedom_model or 0, col_w['df'])} "
+            f"{fmt_num(me.ss_model or 0, col_w['ss'])} "
+            f"{fmt_int(me.df_model or 0, col_w['df'])} "
             f"{fmt_num(me.msr or 0, col_w['ms'])}"
         )
         lines.append(
             f"{'Residual':>{col_w['source']}} | "
-            f"{fmt_num(me.sum_of_square_residual or 0, col_w['ss'])} "
-            f"{fmt_int(me.degrees_of_freedom_residual or 0, col_w['df'])} "
+            f"{fmt_num(me.ss_residual or 0, col_w['ss'])} "
+            f"{fmt_int(me.df_residual or 0, col_w['df'])} "
             f"{fmt_num(me.mse or 0, col_w['ms'])}"
         )
         lines.append(sep)
         lines.append(
             f"{'Total':>{col_w['source']}} | "
-            f"{fmt_num(me.sum_of_square_total or 0, col_w['ss'])} "
-            f"{fmt_int(me.degrees_of_freedom_total or 0, col_w['df'])} "
+            f"{fmt_num(me.ss_total or 0, col_w['ss'])} "
+            f"{fmt_int(me.df_total or 0, col_w['df'])} "
             f"{fmt_num(me.mst or 0, col_w['ms'])}"
         )
 
         return lines
+
+
+
+    def _summary_header_left_anova_table(self, total_width=78, model_summary_df=None, *args):
+
+        # ---- Resolve model_summary table ----------------------------
+        if model_summary_df is not None:
+            if not isinstance(model_summary_df, pd.DataFrame):
+                table = pd.DataFrame.from_dict(model_summary_df)
+        else:
+            if self.ModelResults.model_table is not None:
+                if isinstance(self.ModelResults.model_table, pd.DataFrame):
+                    table = self.ModelResults.model_table.copy()
+                else:
+                    table = pd.DataFrame.from_dict(model_summary_df)
+            else:
+                return [self._get_model_display_name()]
+
+
+
+        # --- ANOVA table columns that always appear ---
+        base_columns = ["Source", "SS", "DF", "MS", "F value", "p-value"]
+        effect_size_columns = ["Eta^2", "Epsilon^2", "Omega^2"]
+
+
+        # ---- Coerce numeric columns to float ----------------------------
+        # Skip the beta column — it may contain "(reference)" strings
+        # Skip the CI column — it is now a pre-formatted string
+        for col in display_cols[1:]:
+            if col in (beta_col, ci_col_name):
+                continue
+            table[col] = pd.to_numeric(table[col], errors="coerce")
+
+        # ---- Per-column formatters (using shared static methods) -----------
+        formatters = {
+            dv_name: self._fmt_str,
+            beta_col: self._fmt_beta(self._table_decimals.get("Coef.", 2)),
+            "Std. Err.": self._fmt_float(self._table_decimals.get("Std. Err.", 4)),
+            test_stat_label: self._fmt_float(self._table_decimals.get("test_stat", 4)),
+            "p-value": self._fmt_float(self._table_decimals.get("test_stat_p", 4)),
+            ci_col_name: self._fmt_str,
+        }
+        # Only include formatters for columns actually in the table
+        formatters = {k: v for k, v in formatters.items() if k in table.columns}
+
+        # ---- Build the output string ------------------------------------
+        sep = "-" * width
+
+        table_str = table.to_string(
+            index=False,
+            na_rep="",
+            formatters=formatters,
+            justify="right",
+        )
+
+        lines = [sep, table_str, sep]
+
+        return "\n".join(lines)
+
 
 
     def _splice_f_stat_lines(self):
@@ -584,13 +545,13 @@ class LinearModel(CoreModel):
         list of str
         """
         me = self.ModelEffects
-        df_model = me.degrees_of_freedom_model or 0
-        df_resid = me.degrees_of_freedom_residual or 0
+        df_model = me.df_model or 0
+        df_resid = me.df_residual or 0
         return [
             f"F({df_model}, {df_resid}) = "
-            f"{(me.model_test_stat or 0):>8.2f}",
+            f"{(me.test_stat or 0):>8.2f}",
             f"Prob > F      = "
-            f"{(me.model_test_pval or 0):>8.4f}",
+            f"{(me.test_pval or 0):>8.4f}",
         ]
 
 
@@ -619,7 +580,6 @@ class LinearModel(CoreModel):
             # OLS descriptives_df is transposed: single row, columns = stat names.
             # Convert to index-oriented for to_string.
             desc_lines = descriptives_df.to_string(header=False, index=False).split("\n")
-            #return [desc_lines[0]] + self._splice_f_stat_lines() + desc_lines[1:]
             return desc_lines
 
         # Fallback: build from self.ModelEffects directly

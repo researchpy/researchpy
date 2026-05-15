@@ -27,7 +27,7 @@ Or attribute access::
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from typing import Union, Optional
 
 import numpy as np
@@ -78,8 +78,8 @@ class ModelEffectsSH:
     mse: Optional[float] = None
     mst: Optional[float] = None
     root_mse: Optional[float] = None
-    model_test_stat: Optional[float] = None
-    model_test_pval: Optional[float] = None
+    test_stat: Optional[float] = None
+    test_pval: Optional[float] = None
     r_squared: Optional[float] = None
     r_squared_adj: Optional[float] = None
 
@@ -101,18 +101,18 @@ class ModelEffectsSH:
 @dataclass
 class ModelEffects:
 
-    sum_of_square_total: Optional[float] = None
-    sum_of_square_model: Optional[float] = None
-    sum_of_square_residual: Optional[float] = None
-    degrees_of_freedom_model: Optional[float] = None
-    degrees_of_freedom_residual: Optional[float] = None
-    degrees_of_freedom_total: Optional[float] = None
+    ss_total: Optional[float] = None
+    ss_model: Optional[float] = None
+    ss_residual: Optional[float] = None
+    df_model: Optional[float] = None
+    df_residual: Optional[float] = None
+    df_total: Optional[float] = None
     msr: Optional[float] = None
     mse: Optional[float] = None
     mst: Optional[float] = None
     root_mse: Optional[float] = None
-    model_test_stat: Optional[float] = None
-    model_test_pval: Optional[float] = None
+    test_stat: Optional[float] = None
+    test_pval: Optional[float] = None
     r_squared: Optional[float] = None
     r_squared_adj: Optional[float] = None
     eta_squared: Optional[float] = None
@@ -135,48 +135,49 @@ class ModelEffects:
 
 
 @dataclass
-class CoefResults:
-
-    term: Optional[Union[np.ndarray, list]] = None
-    betas: Optional[Union[np.ndarray, list]] = None
-    std_error: Optional[Union[np.ndarray, list]] = None
-    test_stat: Optional[Union[np.ndarray, list]] = None
-    p_value: Optional[Union[np.ndarray, list]] = None
-    conf_int_lower: Optional[Union[np.ndarray, list]] = None
-    conf_int_upper: Optional[Union[np.ndarray, list]] = None
-
-    def __iter__(self):
-        """Yield fields in order for tuple-style unpacking."""
-        for f in fields(self):
-            yield getattr(self, f.name)
-
-    def to_dict(self, drop_none=True):
-        dct = {}
-        for f in fields(self):
-            if drop_none and getattr(self, f.name) is not None:
-                dct[f.name] = getattr(self, f.name)
-
-        return dct
-
-
-
-@dataclass
 class FactorEffects:
     """
     Standardized container for factor effects.
     """
 
     ss_type: Optional[Union[str, int]] = 3
-    source: Optional[Union[np.ndarray, list]] = None
-    ss: Optional[Union[np.ndarray, list]] = None
-    df: Optional[Union[np.ndarray, list]] = None
-    ms: Optional[Union[np.ndarray, list]] = None
-    factor_test_stat: Optional[Union[np.ndarray, list]] = None
-    factor_test_pval: Optional[Union[np.ndarray, list]] = None
-    eta_squared: Optional[Union[np.ndarray, list]] = None
-    epsilon_squared: Optional[Union[np.ndarray, list]] = None
-    omega_squared: Optional[Union[np.ndarray, list]] = None
+    source: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    ss: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    df: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    ms: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    test_stat: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    test_pval: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    eta_squared: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    epsilon_squared: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    omega_squared: Optional[Union[np.ndarray, list]] = field(default_factory=list)
 
+
+    def __iter__(self):
+        """Yield fields in order for tuple-style unpacking."""
+        for f in fields(self):
+            yield getattr(self, f.name)
+
+    def to_dict(self, drop_none=True):
+        dct = {}
+        for f in fields(self):
+            if drop_none and getattr(self, f.name) is not None:
+                dct[f.name] = getattr(self, f.name)
+            else:
+                dct[f.name] = getattr(self, f.name)
+
+        return dct
+
+
+@dataclass
+class CoefResults:
+
+    term: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    betas: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    std_error: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    test_stat: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    test_pval: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    conf_int_lower: Optional[Union[np.ndarray, list]] = field(default_factory=list)
+    conf_int_upper: Optional[Union[np.ndarray, list]] = field(default_factory=list)
 
     def __iter__(self):
         """Yield fields in order for tuple-style unpacking."""
@@ -190,6 +191,8 @@ class FactorEffects:
                 dct[f.name] = getattr(self, f.name)
 
         return dct
+
+
 
 
 @dataclass
@@ -197,8 +200,8 @@ class FitStatistics:
 
     n: Optional[float] = None
     k: Optional[float] = None
-    model_test_stat: Optional[float] = None
-    model_test_pval: Optional[float] = None
+    test_stat: Optional[float] = None
+    test_pval: Optional[float] = None
 
     r_squared: Optional[float] = None
     r_squared_adj: Optional[float] = None
@@ -269,7 +272,7 @@ class ModelResults:
     """
 
     model_name: str
-    fit_statistics: Union[pd.DataFrame, dict, ModelResults]
+    fit_statistics: Union[pd.DataFrame, dict]
     model_table: Optional[Union[pd.DataFrame, dict]]
     coefficients: Optional[Union[pd.DataFrame, dict]]
     details: Optional[dict] = None
