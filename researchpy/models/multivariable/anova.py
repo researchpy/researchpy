@@ -656,13 +656,25 @@ class Anova(LinearModel):
 
 
 
-    def regression_table(self, return_type="Dataframe", pretty_format=True,
-                         decimals={"Coef.": 2, "Std. Err.": 4, "test_stat": 4, "test_stat_p": 4, "CI": 2,
-                                   "Root MSE": 4, "R-squared": 4, "Adj R-squared": 4, "Sum of Squares": 4,
-                                   'Degrees of Freedom': 1, 'Mean Squares': 4, 'Effect size': 4},
-                         *args):
+    def regression_table(self, return_type="Dataframe", table_decimals=None, pretty_format=True, *args):
 
-        return super()._get_results(return_type=return_type, pretty_format=pretty_format, table_decimals=decimals)[2]
+        # return super()._get_results(return_type=return_type, pretty_format=pretty_format, table_decimals=decimals)[2]
+
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
+
+        if return_type == "Dataframe":
+            if isinstance(self.ModelResults.coefficients, pd.DataFrame):
+                return self.ModelResults.coefficients
+
+            elif isinstance(self.ModelResults.coefficients, dict):
+                self.ModelResults.coefficients = self.__table_regression_results(return_type=return_type,
+                                                               pretty_format=pretty_format,
+                                                               table_decimals=self._table_decimals)
+
+                return self.ModelResults.coefficients
+
+        return None
 
 
     def predict(self, estimate=None):
@@ -680,7 +692,8 @@ class Anova(LinearModel):
         Overrides OLS's mini-ANOVA table because the full ANOVA table
         is already shown in the body section.
         """
-        return [self._get_model_display_name()] + [f"Number of obs = {self.n}"]
+        #return [self._get_model_display_name()] + [f"Number of obs = {self.n}"]
+        return [self._get_model_display_name()]
 
 
     def _summary_header_right(self, width=78, descriptives_df=None):
@@ -695,8 +708,8 @@ class Anova(LinearModel):
         #    return [desc_lines[0]] + self._splice_f_stat_lines() + desc_lines[1:]
 
         #return super()._summary_header_right(width)
-        #return [f"Number of obs = {self.n:>8}"]
-        return []
+        return [f"Number of obs = {self.n:>8}"]
+        #return []
 
 
     # ------------------------------------------------------------------ #
@@ -731,7 +744,6 @@ class Anova(LinearModel):
 
 
         # ---- Prepare the DataFrame for display -------------------------
-        table = df_results.copy()
         table = self.ModelResults.model_table.copy()
 
 

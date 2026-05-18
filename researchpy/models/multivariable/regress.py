@@ -98,6 +98,43 @@ class Regress(LinearModel):
 
 
 
+    def _set_dataclasses(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
+                          na_rep='', pretty_format=True, table_decimals=None, *args):
+
+
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
+
+        # Build the coefficient table
+        coefficients = self.__table_regression_results(return_type=return_type,
+                                                       pretty_format=pretty_format,
+                                                       table_decimals=self._table_decimals)
+
+
+        ## Always stored as a dictionary ##
+        fit_statistics = self._table_fit_statistics(pretty_format=pretty_format,
+                                                    table_decimals=self._table_decimals)
+
+        model_table = self._table_sum_of_squares(pretty_format=return_type,
+                                                 na_rep=na_rep,
+                                                 include_test_stat_p=include_test_stat_p,
+                                                 factor_effects=factor_effects,
+                                                 include_effect_sizes=include_effect_sizes)
+
+
+
+
+        self.ModelResults = ModelResults(
+            model_name=self._get_model_display_name(),
+            fit_statistics=fit_statistics,
+            model_table=model_table,
+            coefficients=coefficients,
+        )
+
+        return self.ModelResults
+
+
+
     def results(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
         """
         Return the regression results as a ``ModelResults`` dataclass.
@@ -162,6 +199,161 @@ class Regress(LinearModel):
         return predict(self, estimate=estimate)
 
 
+
+    def _summary_header_anova(self, width=78, model_summary_df=None):
+        """
+        Build the left side of the OLS summary header with an ANOVA source table.
+
+        Shows model name followed by a Source/SS/df/MS table with Model, Residual,
+        and Total rows.
+
+        Parameters
+        ----------
+        width : int
+            Total character width of the output.
+        model_summary_df : DataFrame or None
+            Model summary DataFrame from ``self.results()``.  When None the
+            ANOVA mini-table is skipped (used by Anova subclass).
+
+        Returns
+        -------
+        list of str
+            Lines for the left side of the header.
+        """
+
+        if model_summary_df is None:
+            return [self._get_model_display_name()]
+
+        model_display = self.ModelFit.model_display_name
+
+        table = self.ModelResults.model_table.copy()
+
+        lines = []
+        col_w = {}
+        for col in table.columns.to_list():
+            max_str_len = table[col].astype(str).str.len().max()
+            col_w[col] = max_str_len.item()
+
+        table_w = sum(col_w.values()) + 3 * (len(col_w) - 1)
+        print(f"Total table width: {table_w}")
+        # table_w = sum(col_w.values()) + 6
+        # print(f"Total table width: {table_w}")
+
+        lines_after_model_name = 3
+        lines.append(f"{model_display:<{table_w}}{"\n" * lines_after_model_name}")
+
+
+
+        for col_name, col_data in table.items():
+            print(f"Column: {col_name}, Max length: {col_data.astype(str).str.len().max()}")
+            print("\n")
+            print(f"{col_name:>{col_w[col_name]}} |")
+            print(" " + col_data.astype(str) + " |")
+
+        for idx, row in table.iterrows():
+            # row.index gives you the column names for THIS row
+            for col in row.index:
+                print(f"{col}: {row[col]}")
+
+
+
+
+        print(table["Source"].to_string(index=False))
+
+        col_as_string = ""
+        space_btwn_headers = 1
+        for ix, row in table.iterrows():
+            if ix < 3: print(row.to_string(index=False))
+
+            col_as_string = ""
+
+            btwn_headers = " " * space_btwn_headers
+            if col == "Source":
+                col_as_string = f"{col:}"
+                sep = "-" * col_w[col] + f"{btwn_headers}|" * (table_w - col_w[col] - 1)
+            else:
+                sep = "-" * col_w[col] + " | " * (table_w - col_w[col] - 1)
+
+
+            # print(table[col].to_string(index=False) + " | ")
+            lines.append(f"{col:>{col_w.get(col, 2)}} | ")
+
+            table[col].to_string(index=False)
+
+        print("\n".join(lines))
+
+
+        for row in table.itertuples(index=False):
+            print(row)
+
+            print(f"{row.Source:<{col_w[row.Source]}} |")
+
+
+
+
+
+
+
+
+
+
+
+
+        space_btwn_headers = 1
+        for col in table.columns.to_list():
+            btwn_headers = " " * space_btwn_headers
+
+            if col == "Source":
+                lines.append(f"{col:>{col_w[col]}} |{btwn_headers}")
+            else:
+                lines.append(f"{col:<{col_w[col]}}{btwn_headers}")
+
+
+        sep = "-" * col_w['Source'] + "-" * (table_w - col_w['Source'] - 1)
+        lines.append(sep)
+
+
+
+        lines.append(sep)
+
+
+
+        lines.append(
+            f"{'Source':>{col_w['source']}} | "
+            f"{'SS':>{col_w['ss']}} "
+            f"{'df':>{col_w['df']}} "
+            f"{'MS':>{col_w['ms']}}"
+        )
+        lines.append(sep)
+
+        me = self.ModelEffects
+        lines.append(
+            f"{'Model':>{col_w['source']}} | "
+            f"{fmt_num(me.ss_model or 0, col_w['ss'])} "
+            f"{fmt_int(me.df_model or 0, col_w['df'])} "
+            f"{fmt_num(me.msr or 0, col_w['ms'])}"
+        )
+        lines.append(
+            f"{'Residual':>{col_w['source']}} | "
+            f"{fmt_num(me.ss_residual or 0, col_w['ss'])} "
+            f"{fmt_int(me.df_residual or 0, col_w['df'])} "
+            f"{fmt_num(me.mse or 0, col_w['ms'])}"
+        )
+        lines.append(sep)
+        lines.append(
+            f"{'Total':>{col_w['source']}} | "
+            f"{fmt_num(me.ss_total or 0, col_w['ss'])} "
+            f"{fmt_int(me.df_total or 0, col_w['df'])} "
+            f"{fmt_num(me.mst or 0, col_w['ms'])}"
+        )
+
+
+
+
+
+
+
+        return lines
 
 
 # Convenience aliases for users who prefer different naming conventions

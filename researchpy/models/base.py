@@ -8,8 +8,7 @@ import pandas as pd
 
 from researchpy.utility import *
 from researchpy.predict import predict
-#from researchpy.models.results import ModelResults
-from researchpy.core.containerclasses import ModelFit, ModelEffects, CoefResults, FitStatistics, ModelResults, TestResults
+from researchpy.core.containerclasses import ModelFit, FitStatistics, ModelEffects, CoefResults, Term, ModelTerms
 
 from researchpy.optimize.trackers import OptimizationTracker
 
@@ -108,6 +107,9 @@ class CoreModel():
                                                                                                           self.IV.design_info.column_names,
                                                                                                           data)
 
+        # New dataclass-based term/column mapping
+        self._model_terms = ModelTerms.from_design_info(self._IV_design_info)
+
         # Will be refractoring to use dataclasses to clean up codebase and make it more modular. This ModelFit
         # dataclass will store the model design information and fit parameters that are common across different
         # regression models. By centralizing this information in a dataclass, it allows for cleaner code and easier
@@ -123,8 +125,12 @@ class CoreModel():
             iv = self.IV.design_info.term_names
         )
 
+        self.FitStatistics = FitStatistics()
         self.ModelEffects = ModelEffects()
+
         self.CoefResults = CoefResults()
+        self.test_stat_name = "t" if self.ModelFit.family == "gaussian" else "z"
+
 
         ## Creating variable table information
         if not hasattr(self, "regression_table_info"):
@@ -266,6 +272,7 @@ class CoreModel():
 
         self.CoefResults.conf_int_lower = np.array(conf_int_lower)
         self.CoefResults.conf_int_upper = np.array(conf_int_upper)
+
 
 
     def predict(self, estimate=None, trans=None):
@@ -470,13 +477,65 @@ class CoreModel():
             return self.__prettify_table_coef()
 
 
-
     def _get_ModelResults(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
 
         raise NotImplementedError(
             f"{type(self).__name__} must override _get_ModelResults() "
             "to provide self.ModelResults."
         )
+
+
+    def __set_dataclasses(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
+                          na_rep='', pretty_format=True, table_decimals=None, *args):
+        """
+        Return the regression results.
+
+        Parameters
+        ----------
+        return_type : str, optional
+            Format of the returned results. Either "Dataframe" or "Dictionary".
+            Default is "Dataframe".
+        pretty_format : bool, optional
+            Whether to format the output for display. Default is True.
+        table_decimals : dict, optional
+            Dictionary specifying decimal places for different statistics.
+
+        Returns
+        -------
+        tuple
+            If return_type is "Dataframe": (descriptives_df, model_results_df, coefficients_df)
+            If return_type is "Dictionary": (descriptives_dict, model_results_dict, coefficients_dict)
+        """
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
+
+        # Build the coefficient table
+        coefficients = self.__table_regression_results(return_type=return_type,
+                                                       pretty_format=pretty_format,
+                                                       table_decimals=self._table_decimals)
+
+
+        ## Always stored as a dictionary ##
+        fit_statistics = self._table_fit_statistics(pretty_format=pretty_format,
+                                                    table_decimals=self._table_decimals)
+
+        model_table = self._table_sum_of_squares(pretty_format=return_type,
+                                                 na_rep=na_rep,
+                                                 include_test_stat_p=include_test_stat_p,
+                                                 factor_effects=factor_effects,
+                                                 include_effect_sizes=include_effect_sizes)
+
+
+
+
+        self.ModelResults = ModelResults(
+            model_name=self._get_model_display_name(),
+            fit_statistics=fit_statistics,
+            model_table=model_table,
+            coefficients=coefficients,
+        )
+
+        return self.ModelResults
 
 
 

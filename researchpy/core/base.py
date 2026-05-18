@@ -8,7 +8,7 @@ import pandas as pd
 
 from researchpy.utility import *
 from researchpy.predict import predict
-from researchpy.models.results import ModelResults
+from researchpy.core.containerclasses import ModelFit, FitStatistics, ModelEffects, CoefResults, Term, ModelTerms
 
 from researchpy.optimize.trackers import OptimizationTracker
 
