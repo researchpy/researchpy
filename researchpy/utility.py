@@ -34,14 +34,18 @@ def safe_round(value, decimals=4):
     Ensures that a value is numeric, and if not, returns original value.
     """
 
-    if isinstance(value, (np.float32, np.float64, np.int32, np.int64)):
-        return np.round(value.item(), decimals)
+    if isinstance(value, np.ndarray):
+        # Extract scalar from array (handles 0-d and 1-element arrays)
+        val = value.flat[0] if value.size == 1 else float(value.ravel()[0])
+        return round(float(val), decimals)
 
-    else:
-        try:
-            return round(float(value), decimals)
-        except:
-            return value
+    if isinstance(value, (np.floating, np.integer)):
+        return round(float(value), decimals)
+
+    try:
+        return round(float(value), decimals)
+    except (TypeError, ValueError):
+        return value
 
 
 def patsy_column_cleaner(factor):
