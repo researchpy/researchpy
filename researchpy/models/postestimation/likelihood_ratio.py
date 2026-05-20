@@ -12,7 +12,7 @@ from scipy.optimize import minimize
 from scipy.special import expit
 from scipy.stats import chi2
 
-from researchpy.models.results import TestResults
+from researchpy.core.containerclasses import TestResults
 
 
 class LikelihoodRatioTest:

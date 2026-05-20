@@ -29,6 +29,21 @@ def return_numeric(value):
         return value
 
 
+def safe_round(value, decimals=4):
+    """
+    Ensures that a value is numeric, and if not, returns original value.
+    """
+
+    if isinstance(value, (np.float32, np.float64, np.int32, np.int64)):
+        return np.round(value.item(), decimals)
+
+    else:
+        try:
+            return round(float(value), decimals)
+        except:
+            return value
+
+
 def patsy_column_cleaner(factor):
     """
 

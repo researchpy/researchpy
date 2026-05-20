@@ -118,18 +118,22 @@ class CoreModel():
             formula = formula_like,
             family = family,
             link = link,
-            n = self.n,
-            k = self.k,
+            solver_method = solver_method,
             ci_level = conf_level,
-            dv = self.DV.design_info.term_names,
-            iv = self.IV.design_info.term_names
+            dv_term_names = self.DV.design_info.term_names,
+            iv_term_names = self._model_terms.column_map.keys()
         )
 
-        self.FitStatistics = FitStatistics()
+        self.FitStatistics = FitStatistics(
+            n = self.n,
+            k = self.k,
+            test_stat_name = "F"
+        )
         self.ModelEffects = ModelEffects()
 
         self.CoefResults = CoefResults()
-        self.test_stat_name = "t" if self.ModelFit.family == "gaussian" else "z"
+        self.CoefResults.term = self._model_terms.column_map.keys()
+        #self.CoefResults.test_stat_name = "t" if self.ModelFit.family == "gaussian" else "z"
 
 
         ## Creating variable table information
@@ -351,6 +355,141 @@ class CoreModel():
         return table.iloc[:, 5:]
 
 
+    def _prettify_coef_table(self, table_decimals=None):
+        """Build a prettified coefficient table as a dictionary.
+
+        Uses ``self._model_terms`` for structural info (term names, factor
+        flags, reference categories, cleaned column names) and
+        ``self.CoefResults`` for the raw statistics.  ``CoefResults.term``
+        remains the original Patsy column names; cleaned names are sourced
+        from ``ModelTerms.column_map``.
+
+        Parameters
+        ----------
+        table_decimals : dict or None
+            Override decimal settings.  Merged with ``self._table_decimals``.
+
+        Returns
+        -------
+        dict
+            Keys are column header strings, values are equal-length lists.
+            Intended to be converted to a DataFrame by the caller.
+        """
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
+
+        # ---- Resolve sources -------------------------------------------------
+        dv = self.ModelFit.dv_term_names[0]
+        ci_level = int(self.ModelFit.ci_level * 100)
+        test_stat_name = self._test_stat_name
+
+        # Decimal settings
+        d_coef = self._table_decimals.get("Coef.", 2)
+        d_se = self._table_decimals.get("Std. Err.", 3)
+        d_ts = self._table_decimals.get("test_stat", 4)
+        d_p = self._table_decimals.get("test_stat_p", 4)
+        d_ci = self._table_decimals.get("CI", 2)
+
+        # Build positional index: original Patsy column name → array index
+        coef_terms = list(self.CoefResults.term)
+        col_to_idx = {col: i for i, col in enumerate(coef_terms)}
+
+        # Column map for display names
+        column_map = self._model_terms.column_map  # orig col → cleaned col
+
+        # ---- Helper to extract a stats row for a given original column name --
+        def _stats_row(orig_col):
+            idx = col_to_idx[orig_col]
+            beta = safe_round(self.CoefResults.betas[idx], d_coef)
+            se = safe_round(self.CoefResults.std_error[idx], d_se)
+            ts = safe_round(self.CoefResults.test_stat[idx], d_ts)
+            pv = safe_round(self.CoefResults.test_pval[idx], d_p)
+            ci_lo = safe_round(self.CoefResults.conf_int_lower[idx], d_ci)
+            ci_hi = safe_round(self.CoefResults.conf_int_upper[idx], d_ci)
+            return beta, se, ts, pv, [ci_lo, ci_hi]
+
+        # ---- Build output rows -----------------------------------------------
+        col_dv = []
+        col_coef = []
+        col_se = []
+        col_ts = []
+        col_pv = []
+        col_ci = []
+
+        for term in self._model_terms:
+            is_factor = (
+                term.is_factor if not term.is_interaction
+                else (any(term.is_factor) if isinstance(term.is_factor, list) else term.is_factor)
+            )
+
+            if not is_factor:
+                # Continuous variable or Intercept — one row per column
+                for orig_col in term.columns:
+                    col_dv.append(column_map[orig_col])
+                    beta, se, ts, pv, ci = _stats_row(orig_col)
+                    col_coef.append(beta)
+                    col_se.append(se)
+                    col_ts.append(ts)
+                    col_pv.append(pv)
+                    col_ci.append(ci)
+
+            elif not term.is_interaction:
+                # Simple factor — header row + reference row + level rows
+                # Header row (term name, blank stats)
+                col_dv.append(term.name)
+                col_coef.append("")
+                col_se.append("")
+                col_ts.append("")
+                col_pv.append("")
+                col_ci.append("")
+
+                # Reference row
+                ref_label = str(term.reference) if term.reference is not None else ""
+                col_dv.append(ref_label)
+                col_coef.append("(reference)")
+                col_se.append("")
+                col_ts.append("")
+                col_pv.append("")
+                col_ci.append("")
+
+                # Estimated level rows
+                for orig_col in term.columns:
+                    col_dv.append(column_map[orig_col])
+                    beta, se, ts, pv, ci = _stats_row(orig_col)
+                    col_coef.append(beta)
+                    col_se.append(se)
+                    col_ts.append(ts)
+                    col_pv.append(pv)
+                    col_ci.append(ci)
+
+            else:
+                # Interaction term — header row + estimated level rows only
+                col_dv.append(term.name)
+                col_coef.append("")
+                col_se.append("")
+                col_ts.append("")
+                col_pv.append("")
+                col_ci.append("")
+
+                for orig_col in term.columns:
+                    col_dv.append(column_map[orig_col])
+                    beta, se, ts, pv, ci = _stats_row(orig_col)
+                    col_coef.append(beta)
+                    col_se.append(se)
+                    col_ts.append(ts)
+                    col_pv.append(pv)
+                    col_ci.append(ci)
+
+        return {
+            dv: col_dv,
+            "Coef.": col_coef,
+            "Std. Err.": col_se,
+            f"{test_stat_name}": col_ts,
+            "p-value": col_pv,
+            f"{ci_level}% Conf. Interval": col_ci,
+        }
+
+
     def __prettify_table_coef(self):
 
         dv = list(self.regression_table_info)[0]
@@ -427,6 +566,56 @@ class CoreModel():
 
 
     def __table_regression_results(self, return_type="Dataframe", pretty_format=True,
+                                  table_decimals=None, *args):
+
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
+
+        try:
+            self.regression_table_info[self._DV_design_info.term_names[0]] = self._IV_design_info.column_names
+            self.regression_table_info["Coef."] = np.round(self.CoefResults.betas.flatten(), self._table_decimals["Coef."]).tolist()
+            self.regression_table_info["Std. Err."] = np.round(self.CoefResults.std_error.flatten(), self._table_decimals["Std. Err."]).tolist()
+            self.regression_table_info[f"{self._test_stat_name}"] = np.round(self.CoefResults.test_stat.flatten(), self._table_decimals["test_stat"]).tolist()
+            self.regression_table_info["p-value"] = np.round(self.CoefResults.test_pval.flatten(), self._table_decimals["test_stat_p"]).tolist()
+            self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"] = [list(x) for x in np.round(np.hstack((self.CoefResults.conf_int_lower.flatten().reshape(-1, 1),
+                                                                                                                              self.CoefResults.conf_int_upper.flatten().reshape(-1, 1))), self._table_decimals["CI"]).tolist()]
+
+        except:
+            try:
+                for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names,
+                                                                  self.CoefResults.betas, self.CoefResults.std_error,
+                                                                  self.CoefResults.test_stat, self.CoefResults.test_pval,
+                                                                  self.CoefResults.conf_int_lower, self.CoefResults.conf_int_upper):
+
+                    self.regression_table_info[self._DV_design_info.term_names[0]].append(column)
+                    self.regression_table_info["Coef."].append(round(beta.item(), self._table_decimals["Coef."]))
+                    self.regression_table_info["Std. Err."].append(round(stderr.item(), self._table_decimals["Std. Err."]))
+                    self.regression_table_info[f"{self._test_stat_name}"].append(round(t.item(), self._table_decimals["test_stat"]))
+                    self.regression_table_info["p-value"].append(round(p.item(), self._table_decimals["test_stat_p"]))
+                    self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci.item(), self._table_decimals["CI"]),
+                                                                                                      round(u_ci.item(), self._table_decimals["CI"])])
+            except AttributeError:
+                for column, beta, stderr, t, p, l_ci, u_ci in zip(self._IV_design_info.column_names,
+                                                                  self.CoefResults.betas,
+                                                                  self.CoefResults.std_error,
+                                                                  self.CoefResults.test_stat,
+                                                                  self.CoefResults.test_pval,
+                                                                  self.CoefResults.conf_int_lower,
+                                                                  self.CoefResults.conf_int_upper):
+
+                    self.regression_table_info[self._DV_design_info.term_names[0]].append(column)
+                    self.regression_table_info["Coef."].append(round(beta.item(), self._table_decimals["Coef."]))
+                    self.regression_table_info["Std. Err."].append(round(stderr.item(), self._table_decimals["Std. Err."]))
+                    self.regression_table_info[f"{self._test_stat_name}"].append(round(t.item(), self._table_decimals["test_stat"]))
+                    self.regression_table_info["p-value"].append(round(p.item(), self._table_decimals["test_stat_p"]))
+                    self.regression_table_info[f"{int(self.CI_LEVEL * 100)}% Conf. Interval"].append([round(l_ci, self._table_decimals["CI"]),
+                                                                                                      round(u_ci, self._table_decimals["CI"])])
+
+
+        if pretty_format:
+            return self.__prettify_table_coef()
+
+    def _table_regression_results(self, return_type="Dataframe", pretty_format=True,
                                   table_decimals=None, *args):
 
         if table_decimals is not None:
@@ -599,6 +788,15 @@ class CoreModel():
         # Read directly from ModelResults
         mr = self.ModelResults
 
+        if mr.fit_statistics is not None and isinstance(mr.fit_statistics, dict):
+            fit_statistics_df = pd.DataFrame.from_dict(mr.fit_statistics, orient='index').rename(columns={0: ''})
+
+        if mr.model_table is not None and isinstance(mr.model_table, dict):
+            model_table_df = pd.DataFrame.from_dict(mr.model_table, orient='columns')
+
+        if mr.coefficients is not None and isinstance(mr.coefficients, dict):
+            coefficients_df = pd.DataFrame.from_dict(mr.coefficients, orient='index')
+
         # Determine the body DataFrame (coefficients for regression, model_table for ANOVA)
         body_df = mr.coefficients if mr.coefficients is not None else mr.model_table
 
@@ -606,12 +804,12 @@ class CoreModel():
 
         # === HEADER SECTION ===
         output_lines.append(
-            self._summary_header(total_width, model_summary_df=mr.model_table, descriptives_df=mr.fit_statistics)
+            self._summary_header(total_width, model_summary_df=mr.model_table, descriptives_df=fit_statistics_df)
         )
 
         # === BODY SECTION ===
         output_lines.append(
-            self._summary_coef_table(mr.coefficients, total_width, table_decimals=self._table_decimals)
+            self._summary_coef_table(coefficients_df, total_width, table_decimals=self._table_decimals)
         )
 
 

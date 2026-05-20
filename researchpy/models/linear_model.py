@@ -27,6 +27,9 @@ class LinearModel(CoreModel):
 
         self.__name__ = "Researchpy.LinearModel"
 
+        self.ModelFit.model = self.__name__
+        self.ModelFit.model_display_name = self._get_model_display_name()
+
 
         # OLS fit to compute the coefficients (betas) — stored in self.CoefResults.betas
         self._CoreModel__ols_fit()
@@ -37,6 +40,8 @@ class LinearModel(CoreModel):
 
         # Compute standard errors and confidence intervals — stored in self.CoefResults
         self.__compute_beta_se_and_stats()
+
+        self.__set_ModelResults(return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=table_decimals)
 
 
 
@@ -86,8 +91,6 @@ class LinearModel(CoreModel):
 
         if to_return:
             return variance_covariance_beta_matrix
-
-
 
 
     def __model_sum_of_square_stats(self):
@@ -153,6 +156,14 @@ class LinearModel(CoreModel):
         self.ModelEffects.omega_squared = (self.ModelEffects.df_model * (self.ModelEffects.msr - self.ModelEffects.mse)) / (self.ModelEffects.ss_total + self.ModelEffects.mse)
 
 
+        self.FitStatistics.test_stat_name = "F"
+        self.FitStatistics.df_model = self.ModelEffects.df_model
+        self.FitStatistics.df_residual = self.ModelEffects.df_residual
+        self.FitStatistics.r_squared = self.ModelEffects.r_squared
+        self.FitStatistics.r_squared_adj = self.ModelEffects.r_squared_adj
+        self.FitStatistics.root_mse = self.ModelEffects.root_mse
+
+
     def _regression_base_table(self):
 
         self._CoreModel__regression_base_table()
@@ -190,7 +201,7 @@ class LinearModel(CoreModel):
             return fit_statistics
 
 
-    def _table_fit_statistics(self, pretty_format=True, table_decimals=None, *args):
+    def _get_fit_statistics(self, table_decimals=None, *args):
 
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
@@ -206,16 +217,14 @@ class LinearModel(CoreModel):
             "test_stat_model": [f"F({df_model}, {df_resid}) = {test_stat_model}"],
             "test_pval_model": [f"Prob > F = {test_pval_model}"],
             "root_mse": [f"Root MSE = {round(self.ModelEffects.root_mse, self._table_decimals.get('Root MSE', 4))}"],
-            "r_squared": [
-                f"R-squared = {round(self.ModelEffects.r_squared, self._table_decimals.get('R-squared', 4))}"],
+            "r_squared": [f"R-squared = {round(self.ModelEffects.r_squared, self._table_decimals.get('R-squared', 4))}"],
             "r_squared_adj": [f"Adj R-squared = {round(self.ModelEffects.r_squared_adj, self._table_decimals.get('Adj R-squared', 4))}"]
         }
 
         return fit_statistics
 
 
-
-    def _table_sum_of_squares(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
+    def _get_sum_of_squares(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
                                na_rep='', pretty_format=True, table_decimals=None, *args):
 
         if table_decimals is not None:
@@ -314,11 +323,6 @@ class LinearModel(CoreModel):
 
 
         return model_results
-
-
-
-
-
 
 
     def __table_model(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
@@ -524,36 +528,19 @@ class LinearModel(CoreModel):
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
-
         # Build the model description, and anova table
-        fit_statistics = self.__table_fit_statistics(return_type=return_type,
-                                                     pretty_format=pretty_format,
-                                                     table_decimals=self._table_decimals)
+        fit_statistics = self._get_fit_statistics(table_decimals=self._table_decimals)
 
-        model_table = self.__table_model(include_test_stat_p=include_test_stat_p,
-                                         include_effect_sizes=include_effect_sizes,
-                                         factor_effects=factor_effects,
-                                         return_type=return_type,
-                                         pretty_format=pretty_format,
-                                         table_decimals=self._table_decimals)
+        model_table = self._get_sum_of_squares(pretty_format=pretty_format,
+                                               na_rep=na_rep,
+                                               include_test_stat_p=include_test_stat_p,
+                                               factor_effects=factor_effects,
+                                               include_effect_sizes=include_effect_sizes)
 
         # Build the coefficient table
         coefficients = self.__table_regression_results(return_type=return_type,
                                                        pretty_format=pretty_format,
                                                        table_decimals=self._table_decimals)
-
-
-        ## Always stored as a dictionary ##
-        fit_statistics = self._table_fit_statistics(pretty_format=pretty_format,
-                                                    table_decimals=self._table_decimals)
-
-        model_table = self._table_sum_of_squares(pretty_format=return_type,
-                                                 na_rep=na_rep,
-                                                 include_test_stat_p=include_test_stat_p,
-                                                 factor_effects=factor_effects,
-                                                 include_effect_sizes=include_effect_sizes)
-
-
 
         self.ModelResults = ModelResults(
             model_name=self._get_model_display_name(),
@@ -562,9 +549,14 @@ class LinearModel(CoreModel):
             coefficients=coefficients,
         )
 
+        #if return_type="Dataframe":
+        #    fit_statistics_df = pd.DataFrame.from_dict(fit_statistics, orient="index").rename(columns={0: ''})
+        #    return fit_statistics_df
+        #else:
+        #    return self.ModelResults.fit_statistics
+        #else:
+
         return self.ModelResults
-
-
 
 
     def _get_results(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,

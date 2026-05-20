@@ -6,8 +6,6 @@ This module provides the OLS class for fitting linear regression models
 using the ordinary least squares method.
 """
 
-import numpy as np
-import scipy.stats
 import pandas as pd
 
 from researchpy.models.linear_model import LinearModel
@@ -90,11 +88,11 @@ class Regress(LinearModel):
         self.ModelFit.model_display_name = self._get_model_display_name()
 
         # Build ModelResults (results() sets self.ModelResults internally)
-        self.results(return_type="Dataframe", pretty_format=True, table_decimals=table_decimals)
+        self.results(return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=table_decimals)
 
         # Display the model results summary
-        if display_summary:
-            self.summary()
+        #if display_summary:
+           # self.summary()
 
 
 
@@ -135,7 +133,8 @@ class Regress(LinearModel):
 
 
 
-    def results(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
+    def results(self, include_test_stat_p=False, include_effect_sizes=True,
+                return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=None, *args):
         """
         Return the regression results as a ``ModelResults`` dataclass.
 
@@ -170,15 +169,15 @@ class Regress(LinearModel):
                 result.coefficients
         """
 
-        if table_decimals is not None:
-            self._table_decimals = self._table_decimals | table_decimals
+        #if table_decimals is not None:
+        #    self._table_decimals = self._table_decimals | table_decimals
 
-        return self._get_results(include_test_stat_p=False,
-                                 include_effect_sizes=True,
+        return self._get_results(include_test_stat_p=include_test_stat_p,
+                                 include_effect_sizes=include_effect_sizes,
                                  factor_effects=False,
                                  return_type=return_type,
                                  pretty_format=pretty_format,
-                                 table_decimals=self._table_decimals)
+                                 table_decimals=table_decimals)
 
 
 

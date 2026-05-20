@@ -93,7 +93,7 @@ class CoreDataclass:
                 #printed.append(f"{f.name}: {val}")
                 printed.append(f"{f.name}: {val}")
 
-        print("\n\n".join(printed))
+        print("\n".join(printed))
 
 
     def info(self):
@@ -155,21 +155,16 @@ class ModelFit(CoreDataclass):
 
     """
 
-    model: Optional[str] = None
-    model_display_name: Optional[str] = None
     formula: Optional[str] = None
     family: Optional[str] = None
+    model: Optional[str] = None
+    model_display_name: Optional[str] = None
     link: Optional[str] = None
-
+    solver_method: Optional[str] = None
     ci_level: Optional[float] = 0.95
-
-    dv: Optional[list] = None
-    dv_names: Optional[list] = None
-    iv: Optional[list] = None
-    iv_names: Optional[list] = None
-
-    n: Optional[float] = None
-    k: Optional[float] = None
+    dv_term_names: Optional[list] = None
+    iv_term_names: Optional[list] = None
+    additional_stats: Optional[dict] = field(default_factory=dict)
 
     def __post_init__(self):
         self.__name__ = "Researchpy.ModelFit"
@@ -185,11 +180,15 @@ class FitStatistics(CoreDataclass):
     k: Optional[float] = None
 
     test_stat_name: Optional[str] = None
+    df_model: Optional[float] = None
+    df_residual: Optional[float] = None
+
     test_stat: Optional[float] = None
     test_pval: Optional[float] = None
 
     r_squared: Optional[float] = None
     r_squared_adj: Optional[float] = None
+    r_squared_pseudo: Optional[float] = None
     root_mse: Optional[float] = None
 
     log_likelihood: Optional[float] = None
@@ -262,7 +261,6 @@ class ModelEffects(CoreDataclass):
     mse: Optional[float] = None
     mst: Optional[float] = None
     root_mse: Optional[float] = None
-    test_stat_name: Optional[str] = None
     test_stat: Optional[float] = None
     test_pval: Optional[float] = None
     r_squared: Optional[float] = None
@@ -299,13 +297,6 @@ class FactorEffects(CoreDataclass):
 
 
 
-class SumOfSquares(ModelEffects, FactorEffects):
-
-    def __post_init__(self):
-        self.__name__ = "Researchpy.SumOfSquares"
-
-
-
 @dataclass
 class CoefResults(CoreDataclass):
 
@@ -320,8 +311,6 @@ class CoefResults(CoreDataclass):
 
     def __post_init__(self):
         self.__name__ = "Researchpy.CoefResults"
-
-
 
 
 
@@ -371,14 +360,41 @@ class ModelResults(CoreDataclass):
     """
 
     model_name: str
-    fit_statistics: Union[pd.DataFrame, dict]
-    model_table: Optional[Union[pd.DataFrame, dict]]
-    coefficients: Optional[Union[pd.DataFrame, dict]]
+    fit_statistics: Union[pd.DataFrame, dict] = None
+    model_table: Optional[Union[pd.DataFrame, dict]] = None
+    coefficients: Optional[Union[pd.DataFrame, dict]] = None
     details: Optional[dict] = None
-
 
     def __post_init__(self):
         self.__name__ = "Researchpy.ModelResults"
+
+    def to_dataframe(self) -> pd.DataFrame:
+
+        if self.fit_statistics:
+            if self.fit_statistics is not None and isinstance(self.fit_statistics, dict):
+                fit_stats_df = pd.DataFrame.from_dict(self.fit_statistics, orient="index", columns=["Model Fit"])
+            else:
+                fit_stats_df = self.fit_statistics
+
+        if self.model_table:
+            if self.model_table is not None and isinstance(self.model_table, dict):
+                model_table_df = pd.DataFrame.from_dict(self.model_table, orient="columns")
+            else:
+                model_table_df = self.model_table
+
+        if self.coefficients:
+            if self.coefficients is not None and isinstance(self.coefficients, dict):
+                coefs_df = pd.DataFrame.from_dict(self.coefficients, orient="columns")
+            else:
+                coefs_df = self.coefficients
+
+        if self.details:
+            if self.details is not None and isinstance(self.details, dict):
+                details_df = pd.DataFrame.from_dict(self.details, orient="index", columns=["Details"])
+            else:
+                details_df = self.details
+
+
 
 
 
