@@ -1,5 +1,8 @@
+from typing import Any
+
 import patsy
 import pandas as pd
+from pandas import DataFrame
 
 from core import FactorEffects
 from researchpy.models.base import CoreModel
@@ -16,7 +19,6 @@ class LinearModel(CoreModel):
 
     def __init__(self, formula_like, data=None, matrix_type=1, conf_level=0.95, display_summary=True,
                  family="gaussian", link="normal", solver_method="ols", obj_function="numeric",
-                 solver_options={"tol": 1e-7, "max_iter": 300, "display": True},
                  table_decimals=None):
 
         self.FactorEffects = FactorEffects()
@@ -40,8 +42,6 @@ class LinearModel(CoreModel):
 
         # Compute standard errors and confidence intervals — stored in self.CoefResults
         self.__compute_beta_se_and_stats()
-
-        self.__set_ModelResults(return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=table_decimals)
 
 
 
@@ -138,25 +138,31 @@ class LinearModel(CoreModel):
         ### F-values
         # Model
         self.ModelEffects.test_stat_name = "F"
-        self.ModelEffects.test_stat = float(self.ModelEffects.msr / self.ModelEffects.mse)
-        self.ModelEffects.test_pval = return_numeric(scipy.stats.f.sf(self.ModelEffects.test_stat,
-                                                                            self.ModelEffects.df_model,
-                                                                            self.ModelEffects.df_residual)
-                                                           )
+        self.ModelEffects.test_stat = return_numeric(self.ModelEffects.msr / self.ModelEffects.mse)
+        self.ModelEffects.test_pval = return_numeric(
+            scipy.stats.f.sf(self.ModelEffects.test_stat, self.ModelEffects.df_model, self.ModelEffects.df_residual)
+        )
 
         ### Effect Size Measures
         # Model
         self.ModelEffects.r_squared = return_numeric(self.ModelEffects.ss_model / self.ModelEffects.ss_total)
-        self.ModelEffects.r_squared_adj = 1 - (self.ModelEffects.df_total / self.ModelEffects.df_residual) * (
-            self.ModelEffects.ss_residual / self.ModelEffects.ss_total)
+        self.ModelEffects.r_squared_adj = return_numeric(
+            1 - (self.ModelEffects.df_total / self.ModelEffects.df_residual) * (self.ModelEffects.ss_residual / self.ModelEffects.ss_total)
+        )
         self.ModelEffects.eta_squared = self.ModelEffects.r_squared
 
-        self.ModelEffects.epsilon_squared = (self.ModelEffects.df_model * (self.ModelEffects.msr - self.ModelEffects.mse)) / (self.ModelEffects.ss_total)
+        self.ModelEffects.epsilon_squared = return_numeric(
+            (self.ModelEffects.df_model * (self.ModelEffects.msr - self.ModelEffects.mse)) / (self.ModelEffects.ss_total)
+        )
 
-        self.ModelEffects.omega_squared = (self.ModelEffects.df_model * (self.ModelEffects.msr - self.ModelEffects.mse)) / (self.ModelEffects.ss_total + self.ModelEffects.mse)
+        self.ModelEffects.omega_squared = return_numeric(
+            (self.ModelEffects.df_model * (self.ModelEffects.msr - self.ModelEffects.mse)) / (self.ModelEffects.ss_total + self.ModelEffects.mse)
+        )
 
 
         self.FitStatistics.test_stat_name = "F"
+        self.FitStatistics.test_stat = self.ModelEffects.test_stat
+        self.FitStatistics.test_pval = self.ModelEffects.test_pval
         self.FitStatistics.df_model = self.ModelEffects.df_model
         self.FitStatistics.df_residual = self.ModelEffects.df_residual
         self.FitStatistics.r_squared = self.ModelEffects.r_squared
@@ -164,58 +170,26 @@ class LinearModel(CoreModel):
         self.FitStatistics.root_mse = self.ModelEffects.root_mse
 
 
-    def _regression_base_table(self):
 
-        self._CoreModel__regression_base_table()
-
-
-    def __table_fit_statistics(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
-
-        if table_decimals is not None:
-            self._table_decimals = self._table_decimals | table_decimals
-
-        me = self.ModelEffects
-
-        # Constructing the model's metadata table (description), and anova table
-        df_model = round(me.df_model,
-                         self._table_decimals.get("Degrees of Freedom", 1))
-        df_resid = round(me.df_residual,
-                         self._table_decimals.get("Degrees of Freedom", 1))
-        test_stat_model = round(me.test_stat, self._table_decimals.get("test_stat", 4))
-        test_pval_model = round(me.test_pval, self._table_decimals.get("test_stat_p", 4))
-        fit_statistics = {
-            "0": [f"N = {self.n}"],
-            "1": [f"F({df_model}, {df_resid}) = {test_stat_model}"],
-            "2": [f"Prob > F = {test_pval_model}"],
-            "3": [f"Root MSE = {round(me.root_mse, self._table_decimals.get('Root MSE', 4))}"],
-            "4": [
-                f"R-squared = {round(me.r_squared, self._table_decimals.get('R-squared', 4))}"],
-            "5": [f"Adj R-squared = {round(me.r_squared_adj, self._table_decimals.get('Adj R-squared', 4))}"]
-        }
-
-
-        if return_type == "Dataframe":
-            fit_statistics_df = pd.DataFrame.from_dict(fit_statistics, orient="index").rename(columns={0: ''})
-            return fit_statistics_df
-        else:
-            return fit_statistics
-
-
-    def _get_fit_statistics(self, table_decimals=None, *args):
+    #---------------------------------------------------------------------------------------------------------------#
+    #   Setting the fit statistics, model table (sum of squares), and coefficient results in self.ModelResults      #
+    #---------------------------------------------------------------------------------------------------------------#
+    def _get_fit_statistics(self, return_type: object = "Dataframe", table_decimals=None, *args):
 
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
         # Constructing the model's metadata table (description), and anova table
-        df_model = round(self.ModelEffects.df_model, self._table_decimals.get("Degrees of Freedom", 1))
-        df_resid = round(self.ModelEffects.df_residual, self._table_decimals.get("Degrees of Freedom", 1))
-        test_stat_model = round(self.ModelEffects.test_stat, self._table_decimals.get("test_stat", 4))
-        test_pval_model = round(self.ModelEffects.test_pval, self._table_decimals.get("test_stat_p", 4))
+        df_model = round(self.FitStatistics.df_model, self._table_decimals.get("Degrees of Freedom", 1))
+        df_resid = round(self.FitStatistics.df_residual, self._table_decimals.get("Degrees of Freedom", 1))
+        test_stat_name = self.FitStatistics.test_stat_name
+        test_stat_model = round(self.FitStatistics.test_stat, self._table_decimals.get("test_stat", 4))
+        test_pval_model = round(self.FitStatistics.test_pval, self._table_decimals.get("test_stat_p", 4))
 
         fit_statistics = {
             "n": [f"N = {self.n}"],
             "test_stat_model": [f"F({df_model}, {df_resid}) = {test_stat_model}"],
-            "test_pval_model": [f"Prob > F = {test_pval_model}"],
+            "test_pval_model": [f"Prob > {test_stat_name} = {test_pval_model}"],
             "root_mse": [f"Root MSE = {round(self.ModelEffects.root_mse, self._table_decimals.get('Root MSE', 4))}"],
             "r_squared": [f"R-squared = {round(self.ModelEffects.r_squared, self._table_decimals.get('R-squared', 4))}"],
             "r_squared_adj": [f"Adj R-squared = {round(self.ModelEffects.r_squared_adj, self._table_decimals.get('Adj R-squared', 4))}"]
@@ -224,8 +198,8 @@ class LinearModel(CoreModel):
         return fit_statistics
 
 
-    def _get_sum_of_squares(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
-                               na_rep='', pretty_format=True, table_decimals=None, *args):
+    def _get_sum_of_squares(self, include_test_stat_p: object = False, include_effect_sizes: object = False, factor_effects: object = False,
+                            na_rep: object = '', pretty_format: object = True, table_decimals: object = None, *args: object) -> dict[Any, Any]:
 
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
@@ -324,184 +298,12 @@ class LinearModel(CoreModel):
 
         return model_results
 
+    def _get_coefficient_results(self, pretty_format=True, table_decimals=None, *args):
 
-    def __table_model(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
-                      return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
-
-        if table_decimals is not None:
-            self._table_decimals = self._table_decimals | table_decimals
-
-        # Use np.nan for missing cells when not pretty-formatting, '' otherwise
-        blank = '' if pretty_format else np.nan
-
-        # --- Sum of Squares/ANOVA table columns that always appear ---
-        base_columns_mapping = {
-            "Source": "Source",
-            "Sum of Squares": "SS",
-            "Degrees of Freedom": "DF",
-            "Mean Squares": "MS",
-        }
-        test_columns_mapping = {
-            "test_stat": "F value",
-            "test_pval": "p-value",
-        }
-        effect_size_column_mapping = {
-            "Eta squared": "Eta^2",
-            "Epsilon squared": "Epsilon^2",
-            "Omega squared": "Omega^2"
-        }
-        table_columns_mapping = base_columns_mapping.copy() | (test_columns_mapping.copy() if include_test_stat_p else {}) | (effect_size_column_mapping.copy() if include_effect_sizes else {})
-
-        # --- Top + Model rows ---
-        top_source = ["Model", ''] if pretty_format and factor_effects else ["Model"]
-        top = {
-            "Source": top_source,
-            "SS": [round(self.ModelEffects.ss_model, self._table_decimals.get("Sum of Squares", 4))] + ([blank] if pretty_format and factor_effects else []),
-            "DF": [round(self.ModelEffects.df_model, self._table_decimals.get("Degrees of Freedom", 4))] + ([blank] if pretty_format and factor_effects else []),
-            "MS": [round(self.ModelEffects.msr, self._table_decimals.get("Mean Squares", 4))] + ([blank] if pretty_format and factor_effects else []),
-        }
-
-        # --- IV rows ---
-        if factor_effects:
-            middle = {}
-
-            for k, col in base_columns_mapping.items():
-                if k == "Source":
-                    middle["Source"] = [patsy_term_cleaner(term) for term in getattr(self.FactorEffects, k.lower())] + ([blank] if pretty_format else [])
-                else:
-                    dt = getattr(self.FactorEffects, col.lower())
-                    middle[col] = rounder(dt, self._table_decimals.get(col, 4), in_place=False) + ([blank] if pretty_format else [])
-        else:
-            middle = None
-
-        # --- Bottom + Residual & Total rows ---
-        n_blank_prefix = 1 if pretty_format else 0
-        bottom_source = ["Residual", "Total"]
-        bottom = {
-            "Source": bottom_source,
-            "SS": [round(self.ModelEffects.ss_residual,
-                         self._table_decimals.get("Sum of Squares", 4)),
-                   round(self.ModelEffects.ss_total,
-                         self._table_decimals.get("Sum of Squares", 4))],
-            "DF": [round(self.ModelEffects.df_residual,
-                         self._table_decimals.get("Degrees of Freedom", 4)),
-                   round(self.ModelEffects.df_total,
-                         self._table_decimals.get("Degrees of Freedom", 4))],
-            "MS": [round(self.ModelEffects.mse, self._table_decimals.get("Mean Squares", 4)),
-                   round(self.ModelEffects.mst, self._table_decimals.get("Mean Squares", 4))],
-        }
-
-        # --- Adding F and p-values if requested ---
-        if include_test_stat_p:
-            for k, v in test_columns_mapping.items():
-                attr_name = k.lower().replace(" ", "_")
-                top[v] = [round(getattr(self.ModelEffects, attr_name), self._table_decimals.get(k, 4))] + ([blank] if pretty_format and factor_effects else [])
-                bottom[v] = [blank] * (n_blank_prefix * 2)
-
-                if factor_effects:
-                    dt = getattr(self.FactorEffects, attr_name)
-                    middle[v] = rounder(dt, self._table_decimals.get(k, 4), in_place=False) + ([blank] if pretty_format else [])
+        return super()._get_coefficient_results(pretty_format=pretty_format, table_decimals=table_decimals)
 
 
-        # --- Adding effect size columns if requested ---
-        if include_effect_sizes:
-            for k, v in effect_size_column_mapping.items():
-                attr_name = k.lower().replace(" ", "_")
-                top[v] = [round(getattr(self.ModelEffects, attr_name), self._table_decimals.get("Effect size", 4))] + ([blank] if pretty_format and factor_effects else [])
-                bottom[v] = [blank] * (n_blank_prefix * 2)
-
-                if factor_effects:
-                    dt = getattr(self.FactorEffects, attr_name)
-                    middle[v] = rounder(dt, self._table_decimals.get("Effect size", 4), in_place=False) + ([blank] if pretty_format else [])
-
-
-        # --- Combine parts of the table ---
-        model_results = {}
-        for col in list(table_columns_mapping.values()):
-            model_results[col] = top[col] + (middle[col] if factor_effects else []) + bottom[col]
-
-
-        # --- Returning results in the requested format ---
-        if return_type == "Dataframe":
-            model_results_df = pd.DataFrame.from_dict(model_results)
-            return model_results_df
-        else:
-            return model_results
-
-
-    def __table_regression_results(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
-
-        if table_decimals is not None:
-            self._table_decimals = self._table_decimals | table_decimals
-
-        # Build the coefficient table using parent's private method (returns Pandas DataFrame)
-        return self._CoreModel__table_regression_results(return_type=return_type, pretty_format=pretty_format, table_decimals=self._table_decimals)
-
-
-
-
-    def __get_ModelResults(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
-                          return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=None, *args):
-        """
-        Return the regression results.
-
-        Parameters
-        ----------
-        return_type : str, optional
-            Format of the returned results. Either "Dataframe" or "Dictionary".
-            Default is "Dataframe".
-        pretty_format : bool, optional
-            Whether to format the output for display. Default is True.
-        table_decimals : dict, optional
-            Dictionary specifying decimal places for different statistics.
-
-        Returns
-        -------
-        tuple
-            If return_type is "Dataframe": (descriptives_df, model_results_df, coefficients_df)
-            If return_type is "Dictionary": (descriptives_dict, model_results_dict, coefficients_dict)
-        """
-        if return_type.lower() not in ["dataframe", "df", "pandas.dataframe", "dictionary", "dict"]:
-            print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
-
-        if table_decimals is not None:
-            self._table_decimals = self._table_decimals | table_decimals
-
-
-        # Build the model description, and anova table
-        fit_statistics = self.__table_fit_statistics(return_type=return_type,
-                                                     pretty_format=pretty_format,
-                                                     table_decimals=self._table_decimals)
-
-        model_table = self.__table_model(include_test_stat_p=include_test_stat_p,
-                                         include_effect_sizes=include_effect_sizes,
-                                         factor_effects=factor_effects,
-                                         return_type=return_type,
-                                         pretty_format=pretty_format,
-                                         table_decimals=self._table_decimals)
-
-        # Build the coefficient table
-        coefficients = self.__table_regression_results(return_type=return_type,
-                                                       pretty_format=pretty_format,
-                                                       table_decimals=self._table_decimals)
-
-
-
-
-        self.ModelResults = ModelResults(
-            model_name=self._get_model_display_name(),
-            fit_statistics=fit_statistics,
-            model_table=model_table,
-            coefficients=coefficients,
-        )
-
-        return self.ModelResults
-
-
-
-
-
-    def __set_ModelResults(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
+    def _get_ModelResults(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
                           return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=None, *args):
         """
         Return the regression results.
@@ -535,26 +337,18 @@ class LinearModel(CoreModel):
                                                na_rep=na_rep,
                                                include_test_stat_p=include_test_stat_p,
                                                factor_effects=factor_effects,
-                                               include_effect_sizes=include_effect_sizes)
+                                               include_effect_sizes=include_effect_sizes,
+                                               *args)
 
-        # Build the coefficient table
-        coefficients = self.__table_regression_results(return_type=return_type,
-                                                       pretty_format=pretty_format,
-                                                       table_decimals=self._table_decimals)
+        coefficients = self._get_coefficient_results(pretty_format=pretty_format,
+                                                     table_decimals=self._table_decimals)
 
         self.ModelResults = ModelResults(
-            model_name=self._get_model_display_name(),
+            model_name=self.ModelFit.model_display_name,
             fit_statistics=fit_statistics,
             model_table=model_table,
             coefficients=coefficients,
         )
-
-        #if return_type="Dataframe":
-        #    fit_statistics_df = pd.DataFrame.from_dict(fit_statistics, orient="index").rename(columns={0: ''})
-        #    return fit_statistics_df
-        #else:
-        #    return self.ModelResults.fit_statistics
-        #else:
 
         return self.ModelResults
 
@@ -583,24 +377,21 @@ class LinearModel(CoreModel):
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
-        mr = self.__get_ModelResults(include_test_stat_p=include_test_stat_p,
-                                     include_effect_sizes=include_effect_sizes,
-                                     factor_effects=factor_effects,
-                                     na_rep=na_rep,
-                                     return_type=return_type,
-                                     pretty_format=pretty_format,
-                                     table_decimals=self._table_decimals)
-
-
-        #if return_type == "Dataframe":
-        #    fit_statistics_df = pd.DataFrame.from_dict(self.ModelResults.fit_statistics, orient="index").rename(columns={0: ''})
+        mr = self._get_ModelResults(include_test_stat_p=include_test_stat_p,
+                                    include_effect_sizes=include_effect_sizes,
+                                    factor_effects=factor_effects,
+                                    na_rep=na_rep,
+                                    return_type=return_type,
+                                    pretty_format=pretty_format,
+                                    table_decimals=self._table_decimals)
 
         return mr.fit_statistics, mr.model_table, mr.coefficients
 
 
 
-
-
+    #---------------------------------------------------------------------------#
+    #                           Shared Summary Methods                          #
+    #---------------------------------------------------------------------------#
     def _summary_header_left(self, width=78, model_summary_df=None):
         """
         Build the left side of the OLS summary header with an ANOVA source table.
@@ -622,7 +413,9 @@ class LinearModel(CoreModel):
             Lines for the left side of the header.
         """
         if model_summary_df is None:
-            return [self._get_model_display_name()]
+            if self.ModelResults.model_table is None:
+                return [self._get_model_display_name()]
+
 
         lines = []
         model_display = self._get_model_display_name()
@@ -679,47 +472,22 @@ class LinearModel(CoreModel):
 
 
 
-    def _summary_header_left_anova_table(self, total_width=78, model_summary_df=None, *args):
+    def _summary_header_left_anova_table(self, width=78, model_summary_df=None, *args):
 
         # ---- Resolve model_summary table ----------------------------
         if model_summary_df is not None:
             if not isinstance(model_summary_df, pd.DataFrame):
                 table = pd.DataFrame.from_dict(model_summary_df)
+
         else:
             if self.ModelResults.model_table is not None:
                 if isinstance(self.ModelResults.model_table, pd.DataFrame):
                     table = self.ModelResults.model_table.copy()
                 else:
-                    table = pd.DataFrame.from_dict(model_summary_df)
+                    table = self.ModelResults.as_dataframe("model_table", self.ModelResults.model_table)
             else:
                 return [self._get_model_display_name()]
 
-
-
-        # --- ANOVA table columns that always appear ---
-        base_columns = ["Source", "SS", "DF", "MS", "F value", "p-value"]
-        effect_size_columns = ["Eta^2", "Epsilon^2", "Omega^2"]
-
-
-        # ---- Coerce numeric columns to float ----------------------------
-        # Skip the beta column — it may contain "(reference)" strings
-        # Skip the CI column — it is now a pre-formatted string
-        for col in display_cols[1:]:
-            if col in (beta_col, ci_col_name):
-                continue
-            table[col] = pd.to_numeric(table[col], errors="coerce")
-
-        # ---- Per-column formatters (using shared static methods) -----------
-        formatters = {
-            dv_name: self._fmt_str,
-            beta_col: self._fmt_beta(self._table_decimals.get("Coef.", 2)),
-            "Std. Err.": self._fmt_float(self._table_decimals.get("Std. Err.", 4)),
-            test_stat_label: self._fmt_float(self._table_decimals.get("test_stat", 4)),
-            "p-value": self._fmt_float(self._table_decimals.get("test_stat_p", 4)),
-            ci_col_name: self._fmt_str,
-        }
-        # Only include formatters for columns actually in the table
-        formatters = {k: v for k, v in formatters.items() if k in table.columns}
 
         # ---- Build the output string ------------------------------------
         sep = "-" * width
@@ -727,11 +495,14 @@ class LinearModel(CoreModel):
         table_str = table.to_string(
             index=False,
             na_rep="",
-            formatters=formatters,
             justify="right",
         )
 
-        lines = [sep, table_str, sep]
+        lines = [sep,
+                 table_str,
+                 sep,
+                 "Note: Effect size values for factors are partial.",
+                 ]
 
         return "\n".join(lines)
 
@@ -781,10 +552,24 @@ class LinearModel(CoreModel):
         list of str
             Lines for the right side of the header.
         """
-        if descriptives_df is not None:
+        if descriptives_df is None:
             # OLS descriptives_df is transposed: single row, columns = stat names.
             # Convert to index-oriented for to_string.
-            desc_lines = descriptives_df.to_string(header=False, index=False).split("\n")
+            if self.ModelResults.fit_statistics is not None:
+                table = self.ModelResults.as_dataframe("fit_statistics", self.ModelResults.fit_statistics)
+        else:
+            if not isinstance(descriptives_df, pd.DataFrame):
+                table = pd.DataFrame.from_dict(descriptives_df)
+            else:
+                table = descriptives_df.copy()
+
+
+            desc_lines = table.to_string(
+                header=False,
+                index=False,
+                justify="right"
+            ).split("\n")
+
             return desc_lines
 
         # Fallback: build from self.ModelEffects directly

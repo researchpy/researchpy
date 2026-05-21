@@ -339,6 +339,8 @@ class Anova(LinearModel):
                          table_decimals=table_decimals)
 
         self.__name__ = "Researchpy.ANOVA"
+        self.ModelFit.model_type = self.__name__
+        self.ModelFit.model_display_name = self._get_model_display_name()
 
         # Validate sum_of_squares parameter
         valid_ss_types = [1, 2, 3, "I", "II", "III"]
@@ -350,18 +352,15 @@ class Anova(LinearModel):
 
         # Store for potential re-use / inspection
         self.FactorEffects.ss_type = sum_of_squares
-        #self._sum_of_squares_type = sum_of_squares
 
         # Compute factor-level ANOVA effects
-        #self.factor_effects = self._compute_factor_effects(data, sum_of_squares)
         self._compute_factor_effects(data)
 
         # Build ModelResults (results() sets self.ModelResults internally)
-        self.results(return_type="Dataframe", pretty_format=True)
+        self.results(return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=table_decimals)
 
         # Display the model results summary
-        if display_summary:
-            self.summary()
+        if display_summary: self.summary()
 
 
     def _compute_factor_effects(self, data):
@@ -572,7 +571,8 @@ class Anova(LinearModel):
             self._append_factor_effects(current_term, ss_factor, df_factor, stats)
 
 
-    def results(self, return_type="Dataframe", table_decimals=None, pretty_format=True):
+    def results(self, include_test_stat_p=True, include_effect_sizes=True, factor_effects=True,
+                return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=None, *args):
         """
         Return the ANOVA results as a ``ModelResults`` dataclass.
 
@@ -608,51 +608,13 @@ class Anova(LinearModel):
                 result.fit_statistics
                 result.model_table
         """
-        if table_decimals is not None:
-            self._table_decimals = self._table_decimals | table_decimals
 
-        '''
-        # --- Assemble the full ANOVA table ---
-        all_columns = base_columns + (effect_size_columns if pretty_format else [])
-        results_dict = {}
-        for col in all_columns:
-            results_dict[col] = top_row[col] + factors[col] + bottom_row[col]
-
-        # --- Return ---
-        model_name = self._get_model_display_name()
-
-        if return_type == "Dataframe":
-            self.ModelResults = ModelResults(
-                model_name=model_name,
-                fit_statistics=pd.DataFrame.from_dict(descriptives, orient="index"),
-                model_table=pd.DataFrame.from_dict(results_dict),
-                coefficients=None,
-            )
-            return self.ModelResults
-
-        elif return_type == "Dictionary":
-            self.ModelResults = ModelResults(
-                model_name=model_name,
-                fit_statistics=descriptives,
-                model_table=results_dict,
-                coefficients=None,
-            )
-            return self.ModelResults
-
-        else:
-            raise ValueError(
-                "Not a valid return type option, please use either "
-                "'Dataframe' or 'Dictionary'."
-            )
-        '''
-
-
-        return self._get_results(include_test_stat_p=True,
-                                 include_effect_sizes=True,
-                                 factor_effects=True,
+        return self._get_results(include_test_stat_p=include_test_stat_p,
+                                 include_effect_sizes=include_effect_sizes,
+                                 factor_effects=factor_effects,
                                  return_type=return_type,
                                  pretty_format=pretty_format,
-                                 table_decimals=self._table_decimals)
+                                 table_decimals=table_decimals)
 
 
 
@@ -668,11 +630,7 @@ class Anova(LinearModel):
                 return self.ModelResults.coefficients
 
             elif isinstance(self.ModelResults.coefficients, dict):
-                self.ModelResults.coefficients = self.__table_regression_results(return_type=return_type,
-                                                               pretty_format=pretty_format,
-                                                               table_decimals=self._table_decimals)
-
-                return self.ModelResults.coefficients
+                return self.ModelResults.as_dataframe("coefficients", self.ModelResults.coefficients)
 
         return None
 
@@ -709,12 +667,63 @@ class Anova(LinearModel):
 
         #return super()._summary_header_right(width)
         return [f"Number of obs = {self.n:>8}"]
-        #return []
 
 
     # ------------------------------------------------------------------ #
-    #                    ANOVA table (body section)                        #
+    #                    ANOVA table (body section)                      #
     # ------------------------------------------------------------------ #
+    def _summary_header_anova(self, width=78, model_summary_df=None):
+        """
+        Build the left side of the OLS summary header with an ANOVA source table.
+
+        Shows model name followed by a Source/SS/df/MS table with Model, Residual,
+        and Total rows.
+
+        Parameters
+        ----------
+        width : int
+            Total character width of the output.
+        model_summary_df : DataFrame or None
+            Model summary DataFrame from ``self.results()``.  When None the
+            ANOVA mini-table is skipped (used by Anova subclass).
+
+        Returns
+        -------
+        list of str
+            Lines for the left side of the header.
+        """
+
+        #if model_summary_df is None: return [self._get_model_display_name()]
+
+        if model_summary_df is None:
+            if self.ModelResults.model_table is None:
+                return [self._get_model_display_name()]
+            else:
+                if not isinstance(self.ModelResults.model_table, pd.DataFrame):
+                    table = self.ModelResults.as_dataframe("model_table", self.ModelResults.model_table)
+                else:
+                    table = self.ModelResults.model_table.copy()
+        else:
+            if not isinstance(self.ModelResults.model_table, pd.DataFrame):
+                table = pd.DataFrame.from_dict(model_summary_df)
+            else:
+                table = model_summary_df.copy()
+
+
+        model_display = self.ModelFit.model_display_name
+
+
+        lines = []
+        sep = "-" * width
+        lines.append(sep)
+        lines.append(model_display)
+        lines.append(table.to_string(index=False, na_rep="", justify="right"))
+        lines.append(sep)
+
+        return lines
+
+
+
     def _summary_coef_table(self, df_results, width=78, table_decimals=None):
         """
         Build the ANOVA table as the summary body using
@@ -744,7 +753,7 @@ class Anova(LinearModel):
 
 
         # ---- Prepare the DataFrame for display -------------------------
-        table = self.ModelResults.model_table.copy()
+        table = self.ModelResults.as_dataframe("model_table", self.ModelResults.model_table)
 
 
         # ---- Build the output string -----------------------------------

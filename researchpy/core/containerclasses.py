@@ -68,8 +68,7 @@ class CoreDataclass:
             if val is None:
                 continue
 
-            if isinstance(val, dict):
-                val = pd.DataFrame.from_dict(val)
+            #if isinstance(val, dict): val = pd.DataFrame.from_dict(val)
 
             if isinstance(val, pd.DataFrame):
                 printed.append(val.to_string(index=False))
@@ -90,7 +89,6 @@ class CoreDataclass:
                     continue # skip raw arrays
 
             else:
-                #printed.append(f"{f.name}: {val}")
                 printed.append(f"{f.name}: {val}")
 
         print("\n".join(printed))
@@ -368,31 +366,54 @@ class ModelResults(CoreDataclass):
     def __post_init__(self):
         self.__name__ = "Researchpy.ModelResults"
 
-    def to_dataframe(self) -> pd.DataFrame:
+    @staticmethod
+    def as_dataframe(attribute: str, data: Union[pd.DataFrame, dict, None]) -> Optional[pd.DataFrame]:
+        """Convert a ModelResults attribute stored as a dictionary to a DataFrame.
 
-        if self.fit_statistics:
-            if self.fit_statistics is not None and isinstance(self.fit_statistics, dict):
-                fit_stats_df = pd.DataFrame.from_dict(self.fit_statistics, orient="index", columns=["Model Fit"])
-            else:
-                fit_stats_df = self.fit_statistics
+        Each attribute uses a different dictionary-to-DataFrame conversion:
 
-        if self.model_table:
-            if self.model_table is not None and isinstance(self.model_table, dict):
-                model_table_df = pd.DataFrame.from_dict(self.model_table, orient="columns")
-            else:
-                model_table_df = self.model_table
+        - ``fit_statistics``: orient="index", single column named "Model Fit"
+        - ``model_table``: orient="columns"
+        - ``coefficients``: orient="columns"
+        - ``details``: orient="index", single column named "Details"
 
-        if self.coefficients:
-            if self.coefficients is not None and isinstance(self.coefficients, dict):
-                coefs_df = pd.DataFrame.from_dict(self.coefficients, orient="columns")
-            else:
-                coefs_df = self.coefficients
+        Parameters
+        ----------
+        attribute : str
+            Name of the ModelResults attribute. Must be one of
+            "fit_statistics", "model_table", "coefficients", or "details".
+        data : DataFrame, dict, or None
+            The value of the attribute to convert.
 
-        if self.details:
-            if self.details is not None and isinstance(self.details, dict):
-                details_df = pd.DataFrame.from_dict(self.details, orient="index", columns=["Details"])
-            else:
-                details_df = self.details
+        Returns
+        -------
+        pd.DataFrame or None
+            The converted DataFrame, or None if *data* is None.
+
+        Raises
+        ------
+        ValueError
+            If *attribute* is not a recognised ModelResults field.
+        """
+        if data is None:
+            return None
+
+        if isinstance(data, pd.DataFrame):
+            return data
+
+        conversions = {
+            "fit_statistics": lambda d: pd.DataFrame.from_dict(d, orient="index", columns=["Model Fit"]).reset_index(drop=True),
+            "model_table": lambda d: pd.DataFrame.from_dict(d, orient="columns"),
+            "coefficients": lambda d: pd.DataFrame.from_dict(d, orient="columns"),
+            "details": lambda d: pd.DataFrame.from_dict(d, orient="index", columns=["Details"]),
+        }
+
+        if attribute not in conversions:
+            raise ValueError(
+                f"Unknown attribute '{attribute}'. Must be one of: {list(conversions.keys())}"
+            )
+
+        return conversions[attribute](data)
 
 
 

@@ -72,7 +72,7 @@ class Regress(LinearModel):
     """
 
     def __init__(self, formula_like, data=None, conf_level=0.95, display_summary=True,
-                 table_decimals=None):
+                 set_model_results_type="Dictionary", na_rep='', pretty_format=True, table_decimals=None):
 
         self._test_stat_name = "t"
         self._CI_LEVEL = conf_level
@@ -82,8 +82,6 @@ class Regress(LinearModel):
                          table_decimals=table_decimals)
 
         self.__name__ = "Researchpy.Regress"
-
-
         self.ModelFit.model = self.__name__
         self.ModelFit.model_display_name = self._get_model_display_name()
 
@@ -91,46 +89,7 @@ class Regress(LinearModel):
         self.results(return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=table_decimals)
 
         # Display the model results summary
-        #if display_summary:
-           # self.summary()
-
-
-
-    def _set_dataclasses(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
-                          na_rep='', pretty_format=True, table_decimals=None, *args):
-
-
-        if table_decimals is not None:
-            self._table_decimals = self._table_decimals | table_decimals
-
-        # Build the coefficient table
-        coefficients = self.__table_regression_results(return_type=return_type,
-                                                       pretty_format=pretty_format,
-                                                       table_decimals=self._table_decimals)
-
-
-        ## Always stored as a dictionary ##
-        fit_statistics = self._table_fit_statistics(pretty_format=pretty_format,
-                                                    table_decimals=self._table_decimals)
-
-        model_table = self._table_sum_of_squares(pretty_format=return_type,
-                                                 na_rep=na_rep,
-                                                 include_test_stat_p=include_test_stat_p,
-                                                 factor_effects=factor_effects,
-                                                 include_effect_sizes=include_effect_sizes)
-
-
-
-
-        self.ModelResults = ModelResults(
-            model_name=self._get_model_display_name(),
-            fit_statistics=fit_statistics,
-            model_table=model_table,
-            coefficients=coefficients,
-        )
-
-        return self.ModelResults
-
+        if display_summary: self.summary()
 
 
     def results(self, include_test_stat_p=False, include_effect_sizes=True,
@@ -169,15 +128,12 @@ class Regress(LinearModel):
                 result.coefficients
         """
 
-        #if table_decimals is not None:
-        #    self._table_decimals = self._table_decimals | table_decimals
-
-        return self._get_results(include_test_stat_p=include_test_stat_p,
-                                 include_effect_sizes=include_effect_sizes,
-                                 factor_effects=False,
-                                 return_type=return_type,
-                                 pretty_format=pretty_format,
-                                 table_decimals=table_decimals)
+        return  self._get_results(include_test_stat_p=include_test_stat_p,
+                                  include_effect_sizes=include_effect_sizes,
+                                  factor_effects=False,
+                                  return_type=return_type,
+                                  pretty_format=pretty_format,
+                                  table_decimals=table_decimals)
 
 
 
