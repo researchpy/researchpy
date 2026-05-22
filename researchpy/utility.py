@@ -42,10 +42,11 @@ def rp_round(value, decimals=4):
     if isinstance(value, (np.floating, np.integer)):
         return round(float(value), decimals)
 
-    try:
-        return round(float(value), decimals)
-    except (TypeError, ValueError):
-        return value
+    else:
+        try:
+            return round(float(value), decimals)
+        except:
+            return value
 
 
 def as_numeric(value):

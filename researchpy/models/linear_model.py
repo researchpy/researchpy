@@ -4,7 +4,6 @@ import patsy
 import pandas as pd
 from pandas import DataFrame
 
-from core import FactorEffects
 from researchpy.models.base import CoreModel
 from researchpy.core.containerclasses import FactorEffects, ModelResults
 from researchpy.utility import *
