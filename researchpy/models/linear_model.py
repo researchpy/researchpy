@@ -1,7 +1,4 @@
 from typing import Any
-
-import patsy
-import pandas as pd
 from pandas import DataFrame
 
 from researchpy.models.base import CoreModel
@@ -16,7 +13,7 @@ class LinearModel(CoreModel):
 
     """
 
-    def __init__(self, formula_like, data=None, matrix_type=1, conf_level=0.95, display_summary=True,
+    def __init__(self, formula_like, data=None, matrix_type=1, conf_level=0.95,
                  family="gaussian", link="normal", solver_method="ols", obj_function="numeric",
                  table_decimals=None):
 
@@ -43,8 +40,6 @@ class LinearModel(CoreModel):
         self.__compute_beta_se_and_stats()
 
 
-
-    # Compute standard errors and statistics
     def __compute_beta_se_and_stats(self):
         variance_covariance_beta_matrix = self.__variance_covariance_beta_matrix(method="standard", to_return=True, add_to_self=False)
 
@@ -92,7 +87,7 @@ class LinearModel(CoreModel):
             return variance_covariance_beta_matrix
 
 
-    def __model_sum_of_square_stats(self):
+    def __model_sum_of_square_stats(self) -> None:
 
         predicted_y = self.IV @ self.CoefResults.betas     # predicted y values
         residuals = self.DV - predicted_y                   # Calculation of residuals (error)
@@ -169,14 +164,15 @@ class LinearModel(CoreModel):
         self.FitStatistics.root_mse = self.ModelEffects.root_mse
 
 
+    #--------------------------------------------------------------------------------------#
+    #                  Shared Methods for dictionaries for self.ModelFit                   #
+    #--------------------------------------------------------------------------------------#
+    def _get_fit_statistics(self, table_decimals: object = None, *args: object) -> dict[str, list[str]]:
 
-    #---------------------------------------------------------------------------------------------------------------#
-    #   Setting the fit statistics, model table (sum of squares), and coefficient results in self.ModelResults      #
-    #---------------------------------------------------------------------------------------------------------------#
-    def _get_fit_statistics(self, return_type: object = "Dataframe", table_decimals=None, *args):
-
+        ## Resolving decimal places ##
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
+
 
         # Constructing the model's metadata table (description), and anova table
         df_model = round(self.FitStatistics.df_model, self._table_decimals.get("Degrees of Freedom", 1))
@@ -297,75 +293,78 @@ class LinearModel(CoreModel):
 
         return model_results
 
-    def _get_coefficient_results(self, pretty_format=True, table_decimals=None, *args):
+    def _get_coefficient_results(self, pretty_format: object = True, table_decimals: object = None, *args: object) -> dict:
 
-        return super()._get_coefficient_results(pretty_format=pretty_format, table_decimals=table_decimals)
+        return super()._get_coefficient_results(pretty_format=pretty_format, table_decimals=table_decimals, *args)
 
 
-    def _get_ModelResults(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
-                          return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=None, *args):
-        """
-        Return the regression results.
+    #-----------------------------------------------------------------------------------------------------------------#
+    #       Setting the fit statistics, model table (sum of squares), and coefficient results in self.ModelResults    #
+    #-----------------------------------------------------------------------------------------------------------------#
+    def _get_ModelResults(self, include_test_stat_p: object = False, include_effect_sizes: object = False,
+                          factor_effects: object = False, return_type: object = "Dataframe",
+                          na_rep: object = '', pretty_format: object = True, table_decimals: object = None,
+                          *args: object) -> ModelResults:
 
-        Parameters
-        ----------
-        return_type : str, optional
-            Format of the returned results. Either "Dataframe" or "Dictionary".
-            Default is "Dataframe".
-        pretty_format : bool, optional
-            Whether to format the output for display. Default is True.
-        table_decimals : dict, optional
-            Dictionary specifying decimal places for different statistics.
 
-        Returns
-        -------
-        tuple
-            If return_type is "Dataframe": (descriptives_df, model_results_df, coefficients_df)
-            If return_type is "Dictionary": (descriptives_dict, model_results_dict, coefficients_dict)
-        """
-        if return_type.lower() not in ["dataframe", "df", "pandas.dataframe", "dictionary", "dict"]:
+        ## Checking for valid return type ##
+        if return_type.lower() not in ["dataframe", "df", "pandas.dataframe", "pd.dataframe", "dictionary", "dict"]:
             print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
 
+        ## Resolving decimal places ##
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
-        # Build the model description, and anova table
-        fit_statistics = self._get_fit_statistics(table_decimals=self._table_decimals)
+
+        # Build the fit statistics, model table, and coefficient results to be stored in self.ModelResults
+        fit_statistics = self._get_fit_statistics(table_decimals=self._table_decimals, *args)
 
         model_table = self._get_sum_of_squares(pretty_format=pretty_format,
                                                na_rep=na_rep,
                                                include_test_stat_p=include_test_stat_p,
                                                factor_effects=factor_effects,
                                                include_effect_sizes=include_effect_sizes,
+                                               table_decimals=self._table_decimals,
                                                *args)
 
         coefficients = self._get_coefficient_results(pretty_format=pretty_format,
-                                                     table_decimals=self._table_decimals)
+                                                     table_decimals=self._table_decimals,
+                                                     *args)
+
 
         self.ModelResults = ModelResults(
-            model_name=self.ModelFit.model_display_name,
-            fit_statistics=fit_statistics,
-            model_table=model_table,
-            coefficients=coefficients,
+                model_name= self.ModelFit.model_display_name,
+                fit_statistics= fit_statistics,
+                model_table= model_table,
+                coefficients= coefficients,
         )
 
         return self.ModelResults
 
 
-    def _get_results(self, include_test_stat_p=False, include_effect_sizes=False, factor_effects=False,
-                     return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=None, *args):
+    def _get_results(self, include_test_stat_p: object = False, include_effect_sizes: object = False,
+                     factor_effects: object = False, return_type: object = "Dataframe",
+                     na_rep: object = '', pretty_format: object = True,
+                     table_decimals: object = None, *args: object) -> tuple[DataFrame | None, DataFrame | None, DataFrame | None] | tuple[Any, Any, Any]:
         """
         Return the regression results.
 
         Parameters
         ----------
+        include_test_stat_p : bool, optional
+            Whether to include test statistics and p-values in the output. Default is False.
+        include_effect_sizes : bool, optional
+            Whether to include effect size measures in the output. Default is False.
+        factor_effects : bool, optional
+            Whether to include factor effects in the output. Default is False.
         return_type : str, optional
-            Format of the returned results. Either "Dataframe" or "Dictionary".
-            Default is "Dataframe".
+            Format of the returned results. Either "Dataframe" or "Dictionary". Default is "Dataframe".
+        na_rep : object, optional
+            Representation for missing values. Default is ''.
         pretty_format : bool, optional
             Whether to format the output for display. Default is True.
         table_decimals : dict, optional
-            Dictionary specifying decimal places for different statistics.
+            Dictionary specifying decimal places for different statistics. Default is None.
 
         Returns
         -------
@@ -373,6 +372,8 @@ class LinearModel(CoreModel):
             If return_type is "Dataframe": (descriptives_df, model_results_df, coefficients_df)
             If return_type is "Dictionary": (descriptives_dict, model_results_dict, coefficients_dict)
         """
+
+
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
@@ -384,8 +385,13 @@ class LinearModel(CoreModel):
                                     pretty_format=pretty_format,
                                     table_decimals=self._table_decimals)
 
-        return mr.fit_statistics, mr.model_table, mr.coefficients
+        if return_type.lower() in ["dataframe", "df", "pandas.dataframe", "pd.dataframe", ]:
+            return (self.ModelResults.as_dataframe("fit_statistics", mr.fit_statistics),
+                    self.ModelResults.as_dataframe("model_table", mr.model_table),
+                    self.ModelResults.as_dataframe("coefficients", mr.coefficients))
 
+        else:
+            return mr.fit_statistics, mr.model_table, mr.coefficients
 
 
     #---------------------------------------------------------------------------#
@@ -471,7 +477,8 @@ class LinearModel(CoreModel):
 
 
 
-    def _summary_header_left_anova_table(self, width=78, model_summary_df=None, *args):
+    # Pretty sure can delete __summary_header_left_anova_table
+    def __summary_header_left_anova_table(self, width=78, model_summary_df=None, *args):
 
         # ---- Resolve model_summary table ----------------------------
         if model_summary_df is not None:

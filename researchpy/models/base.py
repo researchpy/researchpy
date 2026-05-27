@@ -1,14 +1,10 @@
 # Used
-import numpy as np
 import scipy.stats
-from scipy.special import expit, logit
 import patsy
-import pandas as pd
-
 
 from researchpy.utility import *
 from researchpy.predict import predict
-from researchpy.core.containerclasses import ModelFit, FitStatistics, ModelEffects, CoefResults, Term, ModelTerms
+from researchpy.core.containerclasses import ModelFit, FitStatistics, ModelEffects, CoefResults, ModelTerms
 
 from researchpy.optimize.trackers import OptimizationTracker
 
@@ -135,7 +131,6 @@ class CoreModel():
         self.CoefResults.term = self._model_terms.column_map.keys()
         #self.CoefResults.test_stat_name = "t" if self.ModelFit.family == "gaussian" else "z"
 
-
         ## Creating variable table information
         if not hasattr(self, "regression_table_info"):
             self.regression_table_info = {
@@ -163,6 +158,9 @@ class CoreModel():
             self._table_decimals = self._table_decimals | table_decimals
 
 
+    #---------------------------------------------------------------------------#
+    #                       Shared Computational Methods                        #
+    # --------------------------------------------------------------------------#
     def _hat_matrix(self, y=None, x=None, to_return=False, add_to_self=False):
 
         if y is not None and x is not None:
@@ -278,86 +276,13 @@ class CoreModel():
         self.CoefResults.conf_int_upper = np.array(conf_int_upper)
 
 
-
     def predict(self, estimate=None, trans=None):
         return predict(self, estimate=estimate, trans=trans)
 
 
-    def __prettify_table_coef(self):
-
-        dv = list(self.regression_table_info)[0]
-
-        # Creating the first table #
-        terms = (pd.DataFrame.from_dict(self._patsy_factor_information, orient="index")).reset_index()
-        terms.columns = ["term", "term_cleaned"]
-        terms["intx"] = [1 if ":" in t else 0 for t in list(self._patsy_factor_information.keys())]
-        terms["factor"] = [1 if "C(" in t else 0 for t in list(self._patsy_factor_information.keys())]
-
-        # Creating the second table #
-        term_levels = {"term_cleaned"      : [],
-                       "term_level_cleaned": []}
-
-        for key in self._rp_factor_information.keys():
-
-            count = 1
-
-            if key == 'Intercept' or terms[terms.term_cleaned == key].factor.item() == 0:
-                term_levels["term_cleaned"].append(key)
-                term_levels["term_level_cleaned"].append(self._rp_factor_information[key])
-
-            else:
-                for value in self._rp_factor_information[key]:
-
-                    term_levels["term_cleaned"].append(key)
-
-                    if count == 1:
-
-                        term_levels["term_cleaned"].append(key)
-                        term_levels["term_level_cleaned"].append(key)
-                        term_levels["term_level_cleaned"].append(value)
-
-                        count += 1
-                    else:
-                        term_levels["term_level_cleaned"].append(value)
-
-        # Creating the third table #
-        current_terms = (pd.DataFrame.from_dict(self._mapping, orient="index")).reset_index()
-        current_terms.columns = [dv, "term_level_cleaned"]
-        current_terms["term_cleaned"] = [patsy_term_cleaner(key) for key in self._mapping.keys()]
-
-        # Joining the tables together #
-        table = pd.merge(terms, pd.DataFrame.from_dict(term_levels),
-                         how="left", on="term_cleaned")
-
-        table = pd.merge(table, current_terms,
-                         how="left", on=["term_cleaned", "term_level_cleaned"])
-
-        table = pd.merge(table, pd.DataFrame.from_dict(self.regression_table_info),
-                         how="left", on=dv)
-
-        # Cleaning up final table #
-        table[dv] = table["term_level_cleaned"]
-        for col in table.columns[1:]:
-            table[col] = table[col].astype(object)
-
-        ## This is where we can apply pretty_format at the row level of the Coef. Table ##
-        for idx in table.index:
-            if pd.isnull(table.iloc[idx, 6]) and table.iloc[idx][dv] not in list(self._rp_factor_information.keys())[1:]:
-                table.iloc[idx, 6] = "(reference)"
-                table.iloc[idx, 7:] = ""
-
-            else:
-                if table.iloc[idx][dv] in list(self._rp_factor_information.keys())[1:] and pd.isnull(table.iloc[idx, 6]):
-                    table.iloc[idx, 6:] = ""
-
-        table = table[(table.intx == 0) |
-                      ((table.intx == 1) & (table.iloc[:, 6] != "(reference)"))]
-
-
-        #self.regression_table_info = table.iloc[:, 5:]
-        return table.iloc[:, 5:]
-
-
+    #---------------------------------------------------------------------------#
+    #                   Shared Returning Results Methods                        #
+    # --------------------------------------------------------------------------#
     def _get_coefficient_results(self, pretty_format=True, table_decimals=None):
         """Build a prettified coefficient table as a dictionary.
 
@@ -514,8 +439,9 @@ class CoreModel():
             "to provide self.ModelResults."
         )
 
-
-
+    #---------------------------------------------------------------------------#
+    #                           Shared Summary Methods                          #
+    #---------------------------------------------------------------------------#
     def _get_summary_parts(self):
         """
         Return the DataFrames needed by ``summary()`` to render output.
@@ -537,7 +463,6 @@ class CoreModel():
         mr = self.ModelResults
         body_df = mr.coefficients if mr.coefficients is not None else mr.model_table
         return mr.model_table, mr.fit_statistics, body_df
-
 
 
     def summary(self, total_width=78, return_string=False, table_decimals=None):
@@ -633,9 +558,6 @@ class CoreModel():
         return model_display_names.get(model_name, model_name)
 
 
-    #---------------------------------------------------------------------------#
-    #                           Shared Summary Methods                          #
-    #---------------------------------------------------------------------------#
     def _summary_header(self, width=78, model_summary_df=None, descriptives_df=None):
         """
         Build the header section of the summary output by composing

@@ -12,10 +12,11 @@ import numpy as np
 import scipy.stats
 import patsy
 import pandas as pd
+from pandas import DataFrame
 
 from researchpy.models.linear_model import LinearModel
 from researchpy.core.containerclasses import ModelResults, FactorEffects
-from researchpy.utility import rounder, patsy_term_cleaner
+from researchpy.utility import as_numeric
 
 
 class Anova(LinearModel):
@@ -90,24 +91,8 @@ class Anova(LinearModel):
     #                        Helper Methods                               #
     # ------------------------------------------------------------------ #
 
-    @staticmethod
-    def _to_scalar(val):
-        """
-        Safely convert a numpy array or scalar to a Python float.
 
-        Handles 0-d arrays, 1-element arrays, and plain scalars uniformly
-        without bare except blocks.
 
-        Parameters
-        ----------
-        val : scalar, ndarray, or matrix
-            Value to convert.
-
-        Returns
-        -------
-        float
-        """
-        return float(np.asarray(val).item())
 
     @staticmethod
     def _compute_sse_from_design(x, y):
@@ -196,7 +181,7 @@ class Anova(LinearModel):
         """
         Append a single factor's results to the factor_effects accumulator dict.
 
-        Uses ``_to_scalar()`` for safe numeric conversion.
+        Uses ``as_numeric()`` for safe numeric conversion.
 
         Parameters
         ----------
@@ -212,21 +197,21 @@ class Anova(LinearModel):
             Output from ``_compute_factor_stats()``.
         """
         factor_effects["Source"].append(source)
-        factor_effects["Sum of Squares"].append(cls._to_scalar(ss_factor))
-        factor_effects["Degrees of Freedom"].append(cls._to_scalar(df_factor))
-        factor_effects["Mean Squares"].append(cls._to_scalar(stats["msr_f"]))
-        factor_effects["F value"].append(cls._to_scalar(stats["f_value"]))
-        factor_effects["p-value"].append(cls._to_scalar(stats["f_p_value"]))
-        factor_effects["Eta squared"].append(cls._to_scalar(stats["eta_sq"]))
-        factor_effects["Epsilon squared"].append(cls._to_scalar(stats["epsilon_sq"]))
-        factor_effects["Omega squared"].append(cls._to_scalar(stats["omega_sq"]))
+        factor_effects["Sum of Squares"].append(as_numeric(ss_factor))
+        factor_effects["Degrees of Freedom"].append(as_numeric(df_factor))
+        factor_effects["Mean Squares"].append(as_numeric(stats["msr_f"]))
+        factor_effects["F value"].append(as_numeric(stats["f_value"]))
+        factor_effects["p-value"].append(as_numeric(stats["f_p_value"]))
+        factor_effects["Eta squared"].append(as_numeric(stats["eta_sq"]))
+        factor_effects["Epsilon squared"].append(as_numeric(stats["epsilon_sq"]))
+        factor_effects["Omega squared"].append(as_numeric(stats["omega_sq"]))
 
 
     def _append_factor_effects(self, source, ss_factor, df_factor, stats):
         """
         Append a single factor's results to the factor_effects accumulator dict.
 
-        Uses ``_to_scalar()`` for safe numeric conversion.
+        Uses ``as_numeric()`` for safe numeric conversion.
 
         Parameters
         ----------
@@ -242,15 +227,14 @@ class Anova(LinearModel):
             Output from ``_compute_factor_stats()``.
         """
         self.FactorEffects.source.append(source)
-        self.FactorEffects.ss.append(self._to_scalar(ss_factor))
-        self.FactorEffects.df.append(self._to_scalar(df_factor))
-        self.FactorEffects.ms.append(self._to_scalar(stats["msr_f"]))
-        self.FactorEffects.test_stat.append(self._to_scalar(stats["f_value"]))
-        self.FactorEffects.test_pval.append(self._to_scalar(stats["f_p_value"]))
-        self.FactorEffects.eta_squared.append(self._to_scalar(stats["eta_sq"]))
-        self.FactorEffects.epsilon_squared.append(self._to_scalar(stats["epsilon_sq"]))
-        self.FactorEffects.omega_squared.append(self._to_scalar(stats["omega_sq"]))
-
+        self.FactorEffects.ss.append(as_numeric(ss_factor))
+        self.FactorEffects.df.append(as_numeric(df_factor))
+        self.FactorEffects.ms.append(as_numeric(stats["msr_f"]))
+        self.FactorEffects.test_stat.append(as_numeric(stats["f_value"]))
+        self.FactorEffects.test_pval.append(as_numeric(stats["f_p_value"]))
+        self.FactorEffects.eta_squared.append(as_numeric(stats["eta_sq"]))
+        self.FactorEffects.epsilon_squared.append(as_numeric(stats["epsilon_sq"]))
+        self.FactorEffects.omega_squared.append(as_numeric(stats["omega_sq"]))
 
 
     @staticmethod
@@ -298,6 +282,7 @@ class Anova(LinearModel):
 
         return terms_sum
 
+
     @staticmethod
     def _new_factor_effects_dict():
         """Return a fresh factor_effects accumulator dictionary."""
@@ -335,8 +320,7 @@ class Anova(LinearModel):
         self._test_stat_name = "t"
         self._CI_LEVEL = conf_level
 
-        super().__init__(formula_like, data, conf_level=conf_level, display_summary=False,
-                         table_decimals=table_decimals)
+        super().__init__(formula_like, data, conf_level=conf_level, table_decimals=table_decimals)
 
         self.__name__ = "Researchpy.ANOVA"
         self.ModelFit.model_type = self.__name__
@@ -618,13 +602,21 @@ class Anova(LinearModel):
 
 
 
-    def regression_table(self, return_type="Dataframe", table_decimals=None, pretty_format=True, *args):
+    def regression_table(self, return_type: object = "Dataframe", *args: object) -> DataFrame | None:
+        """
 
-        # return super()._get_results(return_type=return_type, pretty_format=pretty_format, table_decimals=decimals)[2]
+        Parameters
+        ----------
+        return_type : str, optional
+            Format of the returned results. Either "Dataframe" or "Dictionary".
+            Default is "Dataframe".
+        args : object
 
-        if table_decimals is not None:
-            self._table_decimals = self._table_decimals | table_decimals
-
+        Returns
+        -------
+        If return_type is "Dataframe": self.ModelResults.as_dataframe("coefficients", self.ModelResults.coefficients)
+        If return_type is "Dictionary": self.ModelResults.coefficients
+        """
         if return_type == "Dataframe":
             if isinstance(self.ModelResults.coefficients, pd.DataFrame):
                 return self.ModelResults.coefficients
@@ -635,14 +627,9 @@ class Anova(LinearModel):
         return None
 
 
-    def predict(self, estimate=None):
-        return super().predict(estimate=estimate)
-
-
-
-    # ------------------------------------------------------------------ #
-    #               Header overrides for ANOVA                            #
-    # ------------------------------------------------------------------ #
+    # -------------------------------------------------------------------- #
+    #               Summary Overrides for ANOVA                            #
+    # -------------------------------------------------------------------- #
     def _summary_header_left(self, width=78, model_summary_df=None):
         """
         Left header for ANOVA: just the model display name.
@@ -669,9 +656,6 @@ class Anova(LinearModel):
         return [f"Number of obs = {self.n:>8}"]
 
 
-    # ------------------------------------------------------------------ #
-    #                    ANOVA table (body section)                      #
-    # ------------------------------------------------------------------ #
     def _summary_header_anova(self, width=78, model_summary_df=None):
         """
         Build the left side of the OLS summary header with an ANOVA source table.
@@ -721,7 +705,6 @@ class Anova(LinearModel):
         lines.append(sep)
 
         return lines
-
 
 
     def _summary_coef_table(self, df_results, width=78, table_decimals=None):

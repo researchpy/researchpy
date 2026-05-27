@@ -6,10 +6,7 @@ This module provides the OLS class for fitting linear regression models
 using the ordinary least squares method.
 """
 
-import pandas as pd
-
 from researchpy.models.linear_model import LinearModel
-from researchpy.utility import *
 from researchpy.predict import predict
 
 
@@ -89,7 +86,8 @@ class Regress(LinearModel):
         self.results(return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=table_decimals)
 
         # Display the model results summary
-        if display_summary: self.summary()
+        if display_summary:
+            self.summary()
 
 
     def results(self, include_test_stat_p=False, include_effect_sizes=True,
@@ -134,25 +132,6 @@ class Regress(LinearModel):
                                   return_type=return_type,
                                   pretty_format=pretty_format,
                                   table_decimals=table_decimals)
-
-
-
-    def predict(self, estimate=None):
-        """
-        Generate predictions from the fitted model.
-
-        Parameters
-        ----------
-        estimate : str, optional
-            Type of estimate to return.
-
-        Returns
-        -------
-        ndarray
-            Predicted values.
-        """
-        return predict(self, estimate=estimate)
-
 
 
     def _summary_header_anova(self, width=78, model_summary_df=None):
