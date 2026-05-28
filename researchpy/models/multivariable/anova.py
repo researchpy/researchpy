@@ -312,7 +312,7 @@ class Anova(LinearModel):
     # ------------------------------------------------------------------ #
 
     def __init__(self, formula_like, data=None, sum_of_squares=3, conf_level=0.95, display_summary=True,
-                 table_decimals=None):
+                 solver_options=None, table_decimals=None):
 
         if data is None:
             data = {}
@@ -320,7 +320,8 @@ class Anova(LinearModel):
         self._test_stat_name = "t"
         self._CI_LEVEL = conf_level
 
-        super().__init__(formula_like, data, conf_level=conf_level, table_decimals=table_decimals)
+        super().__init__(formula_like, data, conf_level=conf_level, solver_options=solver_options,
+                         table_decimals=table_decimals)
 
         self.__name__ = "Researchpy.ANOVA"
         self.ModelFit.model_type = self.__name__

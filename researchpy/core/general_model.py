@@ -1,6 +1,6 @@
 import numpy as np
 from researchpy.models.base import CoreModel
-from researchpy.core.containerclasses import SolverOptions
+from researchpy.core.containerclasses import SolverOptions, ModelResults
 
 from researchpy.objective_functions.likelihood import neg_log_likelihood, gradient_neg_log_likelihood
 from researchpy.optimize.iterative_algorithms import scipy_minimize, newton_raphson
@@ -135,13 +135,9 @@ class GeneralModel(CoreModel):
 
                 # Perform Likelihood Ratio Test (full model vs null)
                 self._lr_test = LikelihoodRatioTest(self, store_null=True)
-                self.LL_null = self._lr_test.LL_restricted
-                self.LR_chi2 = self._lr_test.LR_chi2
-                self.model_df = self._lr_test.df
-                self.model_p_value = self._lr_test.p_value
 
                 if self.solver_options.display:
-                    print(f"\nLR Chi^2: {self.LR_chi2:.4f}, df: {self.model_df}, p-value: {self.model_p_value:.4g}")
+                    print(f"\nLR Chi^2: {self._lr_test.LR_chi2:.4f}, df: {self._lr_test.df}, p-value: {self._lr_test.p_value:.4g}")
                     print("")
                     print(f"Optimization converged in {result.nfev} iterations")
                     print(f"Final log-likelihood: {-result.fun:.4f}")
@@ -170,13 +166,42 @@ class GeneralModel(CoreModel):
             # Perform Likelihood Ratio Test for Newton-Raphson path
             self.nfev = len(self.logL)
             self._lr_test = LikelihoodRatioTest(self, store_null=True)
-            self.LL_null = self._lr_test.LL_restricted
-            self.LR_chi2 = self._lr_test.LR_chi2
-            self.model_df = self._lr_test.df
-            self.model_p_value = self._lr_test.p_value
 
             if self.solver_options.display:
-                print(f"\nLR Chi^2: {self.LR_chi2:.4f}, df: {self.model_df}, p-value: {self.model_p_value:.4g}")
+                print(f"\nLR Chi^2: {self._lr_test.LR_chi2:.4f}, df: {self._lr_test.df}, p-value: {self._lr_test.p_value:.4g}")
+
+        # ---- Populate FitStatistics dataclass from LR test results ----
+        ll_full = self.logL[-1] if self.logL else None
+        ll_null = self._lr_test.LL_restricted
+
+        self.FitStatistics.log_likelihood = ll_full
+        self.FitStatistics.test_stat_name = "LR Chi^2"
+        self.FitStatistics.test_stat = self._lr_test.LR_chi2
+        self.FitStatistics.df_model = self._lr_test.df
+        self.FitStatistics.test_pval = self._lr_test.p_value
+
+        # AIC = -2·LL + 2·k
+        if ll_full is not None:
+            self.FitStatistics.aic = -2 * ll_full + 2 * self.k
+            # BIC = -2·LL + k·ln(n)
+            self.FitStatistics.bic = -2 * ll_full + self.k * np.log(self.n)
+
+        # McFadden's Pseudo R² = 1 - (LL_full / LL_null)
+        if ll_full is not None and ll_null is not None and ll_null != 0:
+            self.FitStatistics.r_squared_pseudo = 1 - (ll_full / ll_null)
+
+        self.FitStatistics.additional_stats = {
+            "n_iterations": self.nfev,
+            "ll_null": ll_null,
+            "converged": converged or (self.logL is not None and len(self.logL) > 0),
+        }
+
+        # ---- Backward-compatible loose attributes ----
+        self.LL_null = ll_null
+        self.LR_chi2 = self._lr_test.LR_chi2
+        self.model_df = self._lr_test.df
+        self.model_p_value = self._lr_test.p_value
+
 
 
 
@@ -197,10 +222,8 @@ class GeneralModel(CoreModel):
         """
         lines = [self._get_model_display_name()]
 
-        if hasattr(self, 'logL') and self.logL:
-            ll_val = self.logL[-1] if isinstance(self.logL, list) else self.logL
-            if ll_val is not None:
-                lines.append(f"Log likelihood = {ll_val:.4f}")
+        if self.FitStatistics.log_likelihood is not None:
+            lines.append(f"Log likelihood = {self.FitStatistics.log_likelihood:.4f}")
 
         return lines
 
@@ -231,71 +254,156 @@ class GeneralModel(CoreModel):
         if descriptives_df is not None:
             return descriptives_df.to_string(header=False).split("\n")
 
-        # Fallback: build from self attributes
+        # Fallback: build from FitStatistics dataclass
+        fs = self.FitStatistics
         lines = [f"Number of obs = {self.n:>8}"]
 
-        if hasattr(self, 'LR_chi2'):
-            df = getattr(self, 'model_df', '?')
-            lines.append(f"LR chi2({df})    = {self.LR_chi2:>8.4f}")
+        if fs.test_stat is not None and fs.df_model is not None:
+            lines.append(f"LR chi2({int(fs.df_model)})    = {fs.test_stat:>8.4f}")
 
-        if hasattr(self, 'model_p_value'):
-            lines.append(f"Prob > chi2   = {self.model_p_value:>8.4f}")
+        if fs.test_pval is not None:
+            lines.append(f"Prob > chi2   = {fs.test_pval:>8.4f}")
 
-        if hasattr(self, 'nfev') and self.nfev is not None:
-            lines.append(f"N iterations  = {self.nfev:>8}")
+        n_iter = fs.additional_stats.get("n_iterations") if fs.additional_stats else None
+        if n_iter is not None:
+            lines.append(f"N iterations  = {n_iter:>8}")
 
         return lines
 
 
-    def objective_function(self):
-        if self.obj_func.lower() in ["log-likelihood", "log likelihood", "ll"]:
-            y_e = predict(estimate="predict_y")
-            objective = likelihood.log_likelihood(y_e)
+    #--------------------------------------------------------------------------------------#
+    #                  Results Methods (new flow)                                          #
+    #--------------------------------------------------------------------------------------#
+    def _get_fit_statistics(self, table_decimals=None, *args) -> dict:
+        """
+        Build the fit statistics dictionary for MLE-based models.
 
-        return objective
+        Reads from ``self.FitStatistics`` dataclass which is populated during
+        model fitting.
 
+        Parameters
+        ----------
+        table_decimals : dict or None
+            Override decimal settings.
 
-    def _regression_base_table(self):
-
-        self._CoreModel__regression_base_table()
-
-
-    def _table_regression_results(self, report=None, return_type="Dataframe",
-                                  table_decimals=None, pretty_format=True, *args):
-
-        self._CoreModel__table_regression_results(return_type=return_type, pretty_format=pretty_format, table_decimals=table_decimals)
-
-        if return_type == "Dataframe":
-            return self._CoreModel__regression_base_table()
-
-        elif return_type == "Dictionary":
-            return self.regression_table_info
-
-        else:
-            print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
-
-
-
-    def __table_regression_results(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
-
+        Returns
+        -------
+        dict
+            Fit statistics as {label: [formatted_string]} pairs.
+        """
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
-        # Build the coefficient table using parent's private method (returns Pandas DataFrame)
-        return self._CoreModel__table_regression_results(return_type=return_type, pretty_format=pretty_format, table_decimals=self._table_decimals)
+        fs = self.FitStatistics
+        d_ts = self._table_decimals.get("test_stat", 4)
+        d_p = self._table_decimals.get("test_stat_p", 4)
+
+        fit_statistics = {
+            "n": [f"N = {self.n}"],
+        }
+
+        if fs.test_stat is not None and fs.df_model is not None:
+            fit_statistics["test_stat_model"] = [
+                f"LR Chi^2({int(fs.df_model)}) = {round(float(fs.test_stat), d_ts)}"
+            ]
+
+        if fs.test_pval is not None:
+            fit_statistics["test_pval_model"] = [
+                f"Prob > Chi^2 = {round(float(fs.test_pval), d_p)}"
+            ]
+
+        if fs.log_likelihood is not None:
+            fit_statistics["log_likelihood"] = [
+                f"Log likelihood = {round(float(fs.log_likelihood), 4)}"
+            ]
+
+        if fs.r_squared_pseudo is not None:
+            fit_statistics["pseudo_r2"] = [
+                f"Pseudo R^2 = {round(float(fs.r_squared_pseudo), 4)}"
+            ]
+
+        n_iter = fs.additional_stats.get("n_iterations") if fs.additional_stats else None
+        if n_iter is not None:
+            fit_statistics["n_iterations"] = [f"N iterations = {n_iter}"]
+
+        return fit_statistics
 
 
+    def _get_coefficient_results(self, na_rep='', pretty_format=True, table_decimals=None) -> dict:
+        """
+        Build the coefficient results table using the parent CoreModel method.
+
+        Parameters
+        ----------
+        na_rep
+        na_rep
+        pretty_format : bool
+            Whether to format the output for display.
+        table_decimals : dict or None
+            Override decimal settings.
+
+        Returns
+        -------
+        dict
+            Coefficient table as a dictionary suitable for DataFrame conversion.
+        """
+        return super()._get_coefficient_results(pretty_format=pretty_format, table_decimals=table_decimals)
 
 
-    def _get_results(self, report_as=None, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
+    def _get_ModelResults(self, return_type="Dataframe", pretty_format=True,
+                          table_decimals=None, *args) -> ModelResults:
+        """
+        Assemble the ModelResults dataclass for generalized (MLE) models.
+
+        MLE models have no sum-of-squares decomposition, so ``model_table``
+        is always ``None``.
+
+        Parameters
+        ----------
+        return_type : str, optional
+            ``"Dataframe"`` or ``"Dictionary"``. Default is ``"Dataframe"``.
+        pretty_format : bool, optional
+            Whether to format the output for display. Default is True.
+        table_decimals : dict, optional
+            Dictionary specifying decimal places.
+
+        Returns
+        -------
+        ModelResults
+        """
+        ## Checking for valid return type ##
+        if return_type.lower() not in ["dataframe", "df", "pandas.dataframe", "pd.dataframe", "dictionary", "dict"]:
+            print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
+
+        ## Resolving decimal places ##
+        if table_decimals is not None:
+            self._table_decimals = self._table_decimals | table_decimals
+
+        # Build the fit statistics and coefficient results
+        fit_statistics = self._get_fit_statistics(table_decimals=self._table_decimals)
+
+        coefficients = self._get_coefficient_results(pretty_format=pretty_format, table_decimals=self._table_decimals)
+
+        self.ModelResults = ModelResults(
+            model_name=self._get_model_display_name(),
+            fit_statistics=fit_statistics,
+            model_table=None,  # MLE models have no SS decomposition
+            coefficients=coefficients,
+        )
+
+        return self.ModelResults
+
+
+    def _get_results(self, return_type="Dataframe", pretty_format=True,
+                     table_decimals=None, *args):
         """
         Return the regression results.
 
         Parameters
         ----------
         return_type : str, optional
-            Format of the returned results. Either "Dataframe" or "Dictionary".
-            Default is "Dataframe".
+            Format of the returned results. Either ``"Dataframe"`` or
+            ``"Dictionary"``. Default is ``"Dataframe"``.
         pretty_format : bool, optional
             Whether to format the output for display. Default is True.
         table_decimals : dict, optional
@@ -304,24 +412,66 @@ class GeneralModel(CoreModel):
         Returns
         -------
         tuple
-            If return_type is "Dataframe": (descriptives_df, model_results_df, coefficients_df)
-            If return_type is "Dictionary": (descriptives_dict, model_results_dict, coefficients_dict)
+            If return_type is "Dataframe": (fit_statistics_df, None, coefficients_df)
+            If return_type is "Dictionary": (fit_statistics_dict, None, coefficients_dict)
         """
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
+        mr = self._get_ModelResults(return_type=return_type,
+                                    pretty_format=pretty_format,
+                                    table_decimals=self._table_decimals)
 
-        # Build the coefficient table
-        result = self.__table_regression_results(return_type=return_type,
-                                        pretty_format=pretty_format,
-                                        table_decimals=self._table_decimals)
-
-
-        if return_type.lower() in ["dataframe", "df", "pandas.dataframe"]:
-            return result if result is not None else self.regression_table_info
-
-        elif return_type.lower() in ["dictionary", "dict"]:
-            return self.regression_table_info
+        if return_type.lower() in ["dataframe", "df", "pandas.dataframe", "pd.dataframe"]:
+            return (self.ModelResults.as_dataframe("fit_statistics", mr.fit_statistics),
+                    None,
+                    self.ModelResults.as_dataframe("coefficients", mr.coefficients))
 
         else:
-            print("Not a valid return type option, please use either 'Dataframe' or 'Dictionary'.")
+            return mr.fit_statistics, None, mr.coefficients
+
+
+    def _get_from_child(self, key: str, **kwargs):
+        """
+        Hook method for retrieving child-class-specific data or computations.
+
+        Subclasses (e.g., LogisticRegression, PoissonRegression) should override
+        this method to return model-specific values requested by the parent class.
+
+        Parameters
+        ----------
+        key : str
+            Identifier for the requested data. Common keys might include:
+            - ``"default_transform"`` : default coefficient transform function
+            - ``"test_stat_name"`` : name of the test statistic (e.g., "z", "t")
+            - ``"additional_fit_stats"`` : extra fit statistics specific to the child
+            - ``"report_options"`` : child-specific reporting defaults
+        **kwargs
+            Additional context passed from the parent to help the child
+            determine what to return.
+
+        Returns
+        -------
+        object
+            The requested value. Returns ``None`` by default if the child
+            does not recognize or implement the given key.
+
+        Raises
+        ------
+        NotImplementedError
+            Only raised if a key is explicitly required but not implemented
+            by the child. By default, unrecognized keys return ``None``.
+
+        Examples
+        --------
+        In a child class::
+
+            class LogisticRegression(GeneralModel):
+                def _get_from_child(self, key: str, **kwargs):
+                    if key == "default_transform":
+                        return np.exp  # odds ratios
+                    if key == "test_stat_name":
+                        return "z"
+                    return super()._get_from_child(key, **kwargs)
+        """
+        return None

@@ -48,8 +48,7 @@ class CoreModel():
 
     def __init__(self, formula_like, data=None, matrix_type=1, conf_level=0.95, display_summary=True,
                  family="gaussian", link="normal",
-                 solver_method="ols", obj_function="numeric", solver_options=None,
-                 table_decimals=None):
+                 solver_options=None, table_decimals=None):
 
         self.__name__ = "Researchpy.CoreModel"
 
@@ -57,8 +56,6 @@ class CoreModel():
 
         if data is None:
             data = {}
-        if solver_options is None:
-            solver_options = {}
 
         # matrix_type = 1 includes intercept; matrix_type = 0 does not include the intercept
         if matrix_type == 1:
@@ -67,15 +64,15 @@ class CoreModel():
             self.DV, self.IV = patsy.dmatrices(formula_like + "- 1", data, 1)
 
         # Build a SolverOptions dataclass instance.
-        # If solver_options is already a SolverOptions instance (passed from a subclass), use it directly.
-        # Otherwise, construct one from the dict + the top-level method/obj_function params.
+        # Subclasses (LinearModel, GeneralModel) should resolve their own defaults
+        # and pass a fully-formed SolverOptions instance. If None or dict arrives
+        # here, we fall back to the SolverOptions dataclass defaults.
         if isinstance(solver_options, SolverOptions):
             self.solver_options = solver_options
+        elif isinstance(solver_options, dict):
+            self.solver_options = SolverOptions.from_dict(solver_options)
         else:
-            # Merge top-level params into the dict so subclasses can pass them either way
-            merged = {"method": solver_method, "obj_function": obj_function}
-            merged.update(solver_options)
-            self.solver_options = SolverOptions.from_dict(merged)
+            self.solver_options = SolverOptions()
 
         self.obj_function = self.solver_options.obj_function
 
@@ -285,7 +282,8 @@ class CoreModel():
     #---------------------------------------------------------------------------#
     #                   Shared Returning Results Methods                        #
     # --------------------------------------------------------------------------#
-    def _get_coefficient_results(self, pretty_format=True, table_decimals=None):
+    def _get_coefficient_results(self, na_rep: object = '', pretty_format=True, table_decimals=None,
+                                    coef_transform=None):
         """Build a prettified coefficient table as a dictionary.
 
         Uses ``self._model_terms`` for structural info (term names, factor
@@ -296,8 +294,18 @@ class CoreModel():
 
         Parameters
         ----------
+        na_rep : object
+            Representation for missing values.
+        pretty_format : bool
+            Whether to format the output for display. Default is True.
         table_decimals : dict or None
             Override decimal settings.  Merged with ``self._table_decimals``.
+        coef_transform : callable or None
+            Optional transformation function applied to coefficients and
+            confidence interval bounds **before** rounding for display.
+            For example, ``np.exp`` to convert log-odds to odds ratios.
+            Standard errors, test statistics, and p-values are NOT transformed.
+            When ``None`` (default), no transformation is applied.
 
         Returns
         -------
@@ -307,6 +315,7 @@ class CoreModel():
         """
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
+
 
         # ---- Resolve sources -------------------------------------------------
         dv = self.ModelFit.dv_term_names[0]
@@ -330,13 +339,32 @@ class CoreModel():
         # ---- Helper to extract a stats row for a given original column name --
         def _stats_row(orig_col):
             idx = col_to_idx[orig_col]
-            beta = np.round(self.CoefResults.betas[idx], d_coef)
-            se = np.round(self.CoefResults.std_error[idx], d_se)
-            ts = np.round(self.CoefResults.test_stat[idx], d_ts)
-            pv = np.round(self.CoefResults.test_pval[idx], d_p)
-            ci_lo = np.round(self.CoefResults.conf_int_lower[idx], d_ci)
-            ci_hi = np.round(self.CoefResults.conf_int_upper[idx], d_ci)
+
+            # Extract raw values
+            beta_raw = self.CoefResults.betas[idx]
+            se_raw = self.CoefResults.std_error[idx]
+            ts_raw = self.CoefResults.test_stat[idx]
+            pv_raw = self.CoefResults.test_pval[idx]
+            ci_lo_raw = self.CoefResults.conf_int_lower[idx]
+            ci_hi_raw = self.CoefResults.conf_int_upper[idx]
+
+            # Apply transformation to betas and CIs BEFORE rounding
+            # (SE, test stat, p-value are invariant under monotonic transforms)
+            if coef_transform is not None:
+                beta = np.round(coef_transform(beta_raw), d_coef)
+                ci_lo = np.round(coef_transform(ci_lo_raw), d_ci)
+                ci_hi = np.round(coef_transform(ci_hi_raw), d_ci)
+            else:
+                beta = np.round(beta_raw, d_coef)
+                ci_lo = np.round(ci_lo_raw, d_ci)
+                ci_hi = np.round(ci_hi_raw, d_ci)
+
+            se = np.round(se_raw, d_se)
+            ts = np.round(ts_raw, d_ts)
+            pv = np.round(pv_raw, d_p)
+
             return as_numeric(beta), as_numeric(se), as_numeric(ts), as_numeric(pv), [as_numeric(ci_lo), as_numeric(ci_hi)]
+
 
         # ---- Build output rows -----------------------------------------------
         col_dv = []
@@ -434,7 +462,7 @@ class CoreModel():
         }
 
 
-    def _get_ModelResults(self, return_type="Dataframe", pretty_format=True, table_decimals=None, *args):
+    def _get_ModelResults(self, return_type="Dataframe", pretty_format=True, table_decimals=None, **kwargs):
 
         raise NotImplementedError(
             f"{type(self).__name__} must override _get_ModelResults() "

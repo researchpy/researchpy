@@ -69,13 +69,14 @@ class Regress(LinearModel):
     """
 
     def __init__(self, formula_like, data=None, conf_level=0.95, display_summary=True,
-                 set_model_results_type="Dictionary", na_rep='', pretty_format=True, table_decimals=None):
+                 solver_options=None,
+                 return_type="Dictionary", na_rep='', pretty_format=True, table_decimals=None):
 
         self._test_stat_name = "t"
         self._CI_LEVEL = conf_level
 
         super().__init__(formula_like, data, matrix_type=1, conf_level=conf_level,
-                         solver_method="ols", family="gaussian", link="normal", obj_function="numeric",
+                         solver_options=solver_options, family="gaussian", link="normal",
                          table_decimals=table_decimals)
 
         self.__name__ = "Researchpy.Regress"
@@ -83,7 +84,7 @@ class Regress(LinearModel):
         self.ModelFit.model_display_name = self._get_model_display_name()
 
         # Build ModelResults (results() sets self.ModelResults internally)
-        self.results(return_type="Dataframe", na_rep='', pretty_format=True, table_decimals=table_decimals)
+        self.results(return_type=return_type, na_rep=na_rep, pretty_format=pretty_format, table_decimals=table_decimals)
 
         # Display the model results summary
         if display_summary:

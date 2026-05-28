@@ -12,15 +12,30 @@ import numpy as np
 import scipy.stats
 from statsmodels.stats import contingency_tables
 
-def crosstab(group1, group2, prop=None, test=False, margins=True,
+def crosstab(group1, group2,
+             prop=None, test=False, margins=True,
              correction=None, cramer_correction=None, exact=False, expected_freqs=False):
 
-    if not isinstance(group1, pd.Series) or not isinstance(group2, pd.Series):
+    g1 = True
+    g2 = True
+    if not isinstance(group1, pd.Series):
+        try:
+            group1 = pd.Series(group1)
+        except:
+            g1 = False
+
+    if not isinstance(group2, pd.Series):
+        try:
+            group2 = pd.Series(group2)
+        except:
+            g2 = False
+
+    if not g1 and not g2:
         return "Operation only supports Pandas Series"
 
     else:
         ## Creating the crosstab table ##
-        crosstab = pd.crosstab(group1, group2)
+        crosstab = pd.crosstab(group1, group2,)
         crosstab2 = pd.crosstab(group1, group2, margins = True)
         num_row = crosstab2.shape[0] - 1
         num_col = crosstab2.shape[1] - 1
@@ -74,25 +89,29 @@ def crosstab(group1, group2, prop=None, test=False, margins=True,
 
 
         ## Effect size measures ##
+        if test:
+            # Cramer's phi
+            # phi = square_root(chi_square / N)
+            # Where N = total sample size
+            phi = np.sqrt(test_val / n)
 
-        # Cramer's phi
-        # phi = square_root(chi_square / N)
-        # Where N = total sample size
-        phi = np.sqrt(test_val / n)
+            # Cramer's V
+            # V = square_root(chi_square / min(c-1, r-1))
+            min_dim = min((num_row - 1), (num_col - 1))
 
-        # Cramer's V
-        # V = square_root(chi_square / min(c-1, r-1))
-        if cramer_correction == True:
-            phi_corrected = (test_val / n) - ((num_row - 1) * (num_col - 1) / (n - 1))
-            phi_corrected = max(0, phi_corrected)
+            if min_dim == 0:
+                V = np.nan
+            elif cramer_correction == True:
+                phi_corrected = (test_val / n) - ((num_row - 1) * (num_col - 1) / (n - 1))
+                phi_corrected = max(0, phi_corrected)
 
-            row_corrected = num_row - np.square(num_row - 1) / (n - 1)
-            col_corrected = num_col - np.square(num_col - 1) / (n - 1)
+                row_corrected = num_row - np.square(num_row - 1) / (n - 1)
+                col_corrected = num_col - np.square(num_col - 1) / (n - 1)
 
-            V = np.sqrt(phi_corrected / min((num_row -1), (num_col - 1)))
+                V = np.sqrt(phi_corrected / min_dim)
 
-        else:
-            V = np.sqrt(test_val / (n * min((num_row - 1), (num_col - 1))))
+            else:
+                V = np.sqrt(test_val / (n * min_dim))
 
 
 

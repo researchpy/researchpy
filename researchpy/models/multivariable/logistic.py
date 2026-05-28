@@ -4,6 +4,7 @@ from scipy.special import expit
 from researchpy.models.general_model import GeneralModel
 from researchpy.core.containerclasses import ModelResults, SolverOptions
 from researchpy.utility import *
+
 from researchpy.predict import predict
 
 
@@ -105,6 +106,38 @@ class LogisticRegression(GeneralModel):
 
 
 
+    def _get_from_child(self, key: str, **kwargs):
+        """
+        Return LogisticRegression-specific data requested by the parent class.
+
+        Parameters
+        ----------
+        key : str
+            Identifier for the requested data. Supported keys:
+            - ``"default_transform"`` : ``np.exp`` (odds ratios)
+            - ``"test_stat_name"`` : ``"z"``
+            - ``"additional_fit_stats"`` : extra logistic-specific fit stats
+            - ``"report_options"`` : default reporting configuration
+        **kwargs
+            Additional context from the parent.
+
+        Returns
+        -------
+        object
+            The requested value, or ``None`` for unrecognized keys.
+        """
+        if key == "default_transform":
+            return np.exp
+        if key == "test_stat_name":
+            return "z"
+        if key == "additional_fit_stats":
+            return {}
+        if key == "report_options":
+            return {"report_as": "or", "beta_type": "odds ratio"}
+
+        return super()._get_from_child(key, **kwargs)
+
+
     def _compute_statistics(self):
         """Compute standard errors, test statistics, and p-values."""
         linear_pred = self.IV @ self.CoefResults.betas
@@ -122,23 +155,157 @@ class LogisticRegression(GeneralModel):
 
         # Wald z-statistics and p-values
         self.CoefResults.test_stat = self.CoefResults.betas / self.CoefResults.std_error
-        self.CoefResults.p_value = 2 * norm.sf(np.abs(self.CoefResults.test_stat))
+        self.CoefResults.test_pval = 2 * norm.sf(np.abs(self.CoefResults.test_stat))
 
         # Compute confidence intervals
         self._CoreModel__compute_confidence_intervals()
 
 
 
-    def predict(self, estimate=None):
-        """Predict probabilities."""
+    def predict(self, estimate="y", trans=None, **kwargs):
+
+        #return super().predict(self, estimate=estimate, trans=expit)
+        return predict(self, estimate=estimate, trans=trans)
+
+
+
+    def classification_table(self, threshold: float = 0.5,
+                             return_type: str = "dataframe") -> tuple:
+        """
+        Generate a classification table and diagnostic statistics.
+
+        Produces a confusion matrix cross-tabulating predicted vs. actual
+        classes together with sensitivity, specificity, predictive values,
+        false-positive/negative rates, and overall correct classification.
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Probability cutoff for classifying an observation as positive.
+            An observation is classified "+" if Pr(D) >= threshold.
+            Default is 0.5.
+        return_type : str, optional
+            ``"dataframe"`` (default) returns pandas DataFrames.
+            ``"dict"`` or ``"dictionary"`` returns plain dictionaries.
+
+        Returns
+        -------
+        tuple
+            ``(confusion_matrix, statistics)`` where:
+
+            - **confusion_matrix** : pd.DataFrame or dict
+              Rows are Classified ["+", "-", "Total"], columns are
+              ``"{dv_name}={value}"`` for each observed DV level plus "Total".
+            - **statistics** : pd.DataFrame or dict
+              Diagnostic statistics reported as percentages (0–100).
+
+        Notes
+        -----
+        Classification rule:
+            Classified + if predicted Pr(D) >= *threshold*
+            True D defined as DV != 0
+
+        Formulas:
+            - Sensitivity Pr(+|D)             = TP / (TP + FN) * 100
+            - Specificity Pr(-|~D)            = TN / (TN + FP) * 100
+            - Positive predictive value Pr(D|+)  = TP / (TP + FP) * 100
+            - Negative predictive value Pr(~D|-) = TN / (TN + FN) * 100
+            - False + rate for true ~D Pr(+|~D)  = FP / (FP + TN) * 100
+            - False - rate for true D Pr(-|D)    = FN / (FN + TP) * 100
+            - False + rate for classified + Pr(~D|+) = FP / (TP + FP) * 100
+            - False - rate for classified - Pr(D|-)  = FN / (TN + FN) * 100
+            - Correctly classified               = (TP + TN) / N * 100
+
+        Where:
+            TP = True Positives  (actual D, classified +)
+            TN = True Negatives  (actual ~D, classified -)
+            FP = False Positives (actual ~D, classified +)
+            FN = False Negatives (actual D, classified -)
+
+        Examples
+        --------
+        >>> model = LogisticRegression("outcome ~ age + treatment", data=df)
+        >>> table, stats = model.classification_table()
+        >>> print(table)
+        >>> print(stats)
+        """
+        from scipy.special import expit as _expit
+
+        # --- Predicted probabilities and classification ---
         linear_pred = self.IV @ self.CoefResults.betas
-        return expit(linear_pred)
+        predicted_probs = _expit(linear_pred).flatten()
+        predicted_class = (predicted_probs >= threshold).astype(int)
 
+        # --- Actual classes (True D defined as DV != 0) ---
+        actual_class = (self.DV.flatten() != 0).astype(int)
 
+        # --- Confusion matrix counts ---
+        # TP: actual=1, predicted=1
+        # FP: actual=0, predicted=1
+        # FN: actual=1, predicted=0
+        # TN: actual=0, predicted=0
+        tp = int(np.sum((actual_class == 1) & (predicted_class == 1)))
+        fp = int(np.sum((actual_class == 0) & (predicted_class == 1)))
+        fn = int(np.sum((actual_class == 1) & (predicted_class == 0)))
+        tn = int(np.sum((actual_class == 0) & (predicted_class == 0)))
+        n = tp + fp + fn + tn
+
+        # --- Build confusion matrix table ---
+        dv_name = self.ModelFit.dv_term_names[0]
+        col_positive = f"{dv_name}=1"
+        col_negative = f"{dv_name}=0"
+
+        confusion_data = {
+            "Classified": ["+", "-", "Total"],
+            col_positive: [tp, fn, tp + fn],
+            col_negative: [fp, tn, fp + tn],
+            "Total": [tp + fp, fn + tn, n],
+        }
+
+        # --- Compute diagnostic statistics (as percentages) ---
+        # Guard against division by zero
+        def _safe_pct(numerator: int, denominator: int) -> float:
+            if denominator == 0:
+                return float("nan")
+            return round((numerator / denominator) * 100.0, 2)
+
+        stats_data = {
+            "Statistic": [
+                "                   Sensitivity Pr( +| D)",
+                "                   Specificity Pr( -|~D)",
+                "     Positive predictive value Pr( D| +)",
+                "     Negative predictive value Pr(~D| -)",
+                "      False + rate for true ~D Pr( +|~D)",
+                "       False - rate for true D Pr( -| D)",
+                "False + rate for classified +  Pr(~D| +)",
+                "False - rate for classified -  Pr( D| -)",
+                "Correctly classified",
+            ],
+            "Percent": [
+                _safe_pct(tp, tp + fn),        # Sensitivity: TP / (TP + FN)
+                _safe_pct(tn, tn + fp),        # Specificity: TN / (TN + FP)
+                _safe_pct(tp, tp + fp),        # PPV: TP / (TP + FP)
+                _safe_pct(tn, tn + fn),        # NPV: TN / (TN + FN)
+                _safe_pct(fp, fp + tn),        # False+ for true ~D: FP / (FP + TN)
+                _safe_pct(fn, fn + tp),        # False- for true D: FN / (FN + TP)
+                _safe_pct(fp, tp + fp),        # False+ for classified+: FP / (TP + FP)
+                _safe_pct(fn, tn + fn),        # False- for classified-: FN / (TN + FN)
+                _safe_pct(tp + tn, n),         # Correctly classified: (TP + TN) / N
+            ],
+        }
+
+        # --- Return based on return_type ---
+        if return_type.lower() in ["dict", "dictionary"]:
+            return confusion_data, stats_data
+
+        confusion_df = pd.DataFrame(confusion_data).set_index("Classified")
+        stats_df = pd.DataFrame(stats_data)
+
+        return confusion_df, stats_df
 
 
     def results(self, report_as="or", return_type="Dataframe", pretty_format=True,
-                table_decimals=None, *args):
+                table_decimals=None, **kwargs):
         """
         Return the logistic regression results as a ``ModelResults`` dataclass.
 
@@ -176,63 +343,62 @@ class LogisticRegression(GeneralModel):
         if table_decimals is not None:
             self._table_decimals = self._table_decimals | table_decimals
 
-        # Need to convert to odds ratio before calling _get_results()
+
+        # Determine the coefficient transform based on report_as
         if report_as.lower() in ["or", "odds ratio", "odds_ratio"]:
-            if self._beta_type == "coef":
-                self.CoefResults.betas = np.exp(self.CoefResults.betas)
-                self.CoefResults.conf_int_lower = np.exp(self.CoefResults.conf_int_lower)
-                self.CoefResults.conf_int_upper = np.exp(self.CoefResults.conf_int_upper)
-                self._beta_type = "odds ratio"
+            transform = np.exp
+            self._beta_type = "odds ratio"
+        else:
+            transform = None
+            self._beta_type = "coef"
 
-        # Combined fit statistics dictionary
-        ll_val = self.logL[-1] if isinstance(self.logL, list) else self.logL
-        fit_statistics_dict = {
-            "Number of observations = ": [self.n],
-            f"LR Chi^2({self.model_df}) = ": [round(float(self.LR_chi2), 4)],
-            "Prob > Chi^2 = ": [round(float(self.model_p_value), 4)],
-            "Log likelihood = ": [round(float(ll_val), 4) if ll_val is not None else None],
-            "N iterations = ": [self.nfev],
-        }
 
-        # Returns as pd.DataFrame by default
-        raw = self._get_results(return_type=return_type, pretty_format=pretty_format,
-                                table_decimals=self._table_decimals)
+        # Use the new GeneralModel flow to build ModelResults
+        mr = self._get_ModelResults(return_type=return_type,
+                                    pretty_format=pretty_format,
+                                    table_decimals=self._table_decimals,
+                                    coef_transform=transform)
 
-        # Build coefficient table
-        if return_type == "Dataframe":
-            fit_stats_out = pd.DataFrame.from_dict(fit_statistics_dict, orient='index')
 
-            if self._beta_type == "odds ratio":
-                raw = raw.rename(columns={"Coef.": "Odds Ratio"})
+        # Returning the classification table as the "model_table" component of ModelResults for logistic regression
+        classification_table, classification_stats = self.classification_table(return_type="Dictionary")
+        self.ModelResults.model_table = (classification_table, classification_stats)
 
-            self.ModelResults = ModelResults(
-                model_name=self._get_model_display_name(),
-                fit_statistics=fit_stats_out,
-                model_table=None,
-                coefficients=raw,
-            )
-            return self.ModelResults
 
-        elif return_type == "Dictionary":
-            if self._beta_type == "odds ratio":
-                raw = {('Odds Ratio' if k == 'Coef.' else k): v for k, v in raw.items()}
+        # Rename "Coef." column to "Odds Ratio" if reporting odds ratios
+        if self._beta_type == "odds ratio":
+            if return_type.lower() in ["dataframe", "df", "pandas.dataframe", "pd.dataframe"]:
+                coef_df = self.ModelResults.as_dataframe("coefficients", mr.coefficients)
 
-            self.ModelResults = ModelResults(
-                model_name=self._get_model_display_name(),
-                fit_statistics=fit_statistics_dict,
-                model_table=None,
-                coefficients=raw,
-            )
-            return self.ModelResults
+                if "Coef." in coef_df.columns:
+                    coef_df = coef_df.rename(columns={"Coef.": "Odds Ratio"})
+
+                self.ModelResults.coefficients = coef_df
+
+            elif isinstance(mr.coefficients, dict) and "Coef." in mr.coefficients:
+                self.ModelResults.coefficients = {
+                    ('Odds Ratio' if k == 'Coef.' else k): v
+                    for k, v in mr.coefficients.items()
+                }
+
+
+
+        if return_type.lower() in ["dataframe", "df", "pandas.dataframe", "pd.dataframe", ]:
+            classification_table = pd.DataFrame(classification_table).set_index("Classified")
+            classification_stats = pd.DataFrame(classification_stats)
+
+            return (self.ModelResults.as_dataframe("fit_statistics", mr.fit_statistics),
+                    (classification_table, classification_stats),
+                    self.ModelResults.as_dataframe("coefficients", mr.coefficients) )
 
         else:
-            raise ValueError(
-                "Not a valid return type option, please use either "
-                "'Dataframe' or 'Dictionary'."
-            )
+            return mr.fit_statistics, (classification_table, classification_stats), mr.coefficients
 
 
 
+    #--------------------------------------------------------------------#
+    #                           Summary Methods                          #
+    #--------------------------------------------------------------------#
     def summary(self, total_width=78, return_string=False, report_as="or", table_decimals=None):
         """
         Print a formatted summary of the logistic regression results.
@@ -266,3 +432,4 @@ class LogisticRegression(GeneralModel):
 
 # Convenience alias
 Logistic = LogisticRegression
+lo

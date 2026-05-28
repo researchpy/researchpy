@@ -9,7 +9,7 @@ import pandas as pd
 from researchpy.utility import *
 from researchpy.predict import predict
 from researchpy.core.containerclasses import ModelFit, FitStatistics, ModelEffects, CoefResults, Term, ModelTerms, \
-    ModelResults
+    ModelResults, SolverOptions
 
 from researchpy.optimize.trackers import OptimizationTracker
 
@@ -53,8 +53,7 @@ class CoreModel():
 
     def __init__(self, formula_like, data=None, matrix_type=1, conf_level=0.95, display_summary=True,
                  family="gaussian", link="normal",
-                 solver_method="ols", obj_function="numeric", solver_options=None,
-                 table_decimals=None):
+                 solver_options=None, table_decimals=None):
 
         self.__name__ = "Researchpy.CoreModel"
 
@@ -62,8 +61,6 @@ class CoreModel():
 
         if data is None:
             data = {}
-        if solver_options is None:
-            solver_options = {}
 
         # matrix_type = 1 includes intercept; matrix_type = 0 does not include the intercept
         if matrix_type == 1:
@@ -71,10 +68,18 @@ class CoreModel():
         if matrix_type == 0:
             self.DV, self.IV = patsy.dmatrices(formula_like + "- 1", data, 1)
 
-        base_solver_options = {"tol": 1e-7, "max_iter": 300, "display": True}
-        self.solver_options = base_solver_options | solver_options
+        # Build a SolverOptions dataclass instance.
+        # Subclasses (LinearModel, GeneralModel) should resolve their own defaults
+        # and pass a fully-formed SolverOptions instance. If None or dict arrives
+        # here, we fall back to the SolverOptions dataclass defaults.
+        if isinstance(solver_options, SolverOptions):
+            self.solver_options = solver_options
+        elif isinstance(solver_options, dict):
+            self.solver_options = SolverOptions.from_dict(solver_options)
+        else:
+            self.solver_options = SolverOptions()
 
-        self.obj_function = obj_function
+        self.obj_function = self.solver_options.obj_function
 
         self.CI_LEVEL = conf_level
         self.conf_level = conf_level
@@ -90,12 +95,6 @@ class CoreModel():
         self._family = family
         self._link = link
         self._CI_LEVEL = conf_level
-        self._solver = {"method": solver_method,
-                        "obj_function": obj_function,
-                        "algorithm": solver_options.get("algorithm", None),
-                        "tol": solver_options.get("tol", None),
-                        "max_iter": solver_options.get("max_iter", None),
-                        "display": solver_options.get("display", True)}
 
         # Initialize an optimization tracker instance for this model. This tracker can be used by optimization
         # algorithms to store and monitor the optimization process.
@@ -119,7 +118,7 @@ class CoreModel():
             formula = formula_like,
             family = family,
             link = link,
-            solver_method = solver_method,
+            solver_method = self.solver_options.method,
             ci_level = conf_level,
             dv_term_names = self.DV.design_info.term_names,
             iv_term_names = list(self._model_terms.column_map.keys())

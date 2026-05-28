@@ -2,7 +2,7 @@ from typing import Any
 from pandas import DataFrame
 
 from researchpy.models.base import CoreModel
-from researchpy.core.containerclasses import FactorEffects, ModelResults
+from researchpy.core.containerclasses import FactorEffects, ModelResults, SolverOptions
 from researchpy.utility import *
 
 
@@ -14,13 +14,34 @@ class LinearModel(CoreModel):
     """
 
     def __init__(self, formula_like, data=None, matrix_type=1, conf_level=0.95,
-                 family="gaussian", link="normal", solver_method="ols", obj_function="numeric",
+                 family="gaussian", link="normal", solver_options=None,
                  table_decimals=None):
 
         self.FactorEffects = FactorEffects()
 
+        if data is None:
+            data = {}
+
+        # Build SolverOptions: start with LinearModel OLS defaults, then overlay user input.
+        base_defaults = SolverOptions(
+            method="ols",
+            algorithm=None,
+            obj_function="numeric",
+            tol=1e-7,
+            max_iter=300,
+            display=True
+        )
+
+        if solver_options is None:
+            resolved_solver_options = base_defaults
+        elif isinstance(solver_options, SolverOptions):
+            resolved_solver_options = solver_options
+        else:
+            # User passed a dict — override base defaults with user values
+            resolved_solver_options = base_defaults.with_overrides(solver_options)
+
         super().__init__(formula_like=formula_like, data=data, matrix_type=matrix_type, conf_level=conf_level,
-                         family=family, link=link, solver_method=solver_method, obj_function=obj_function,
+                         family=family, link=link, solver_options=resolved_solver_options,
                          table_decimals=table_decimals)
 
         self.__name__ = "Researchpy.LinearModel"
@@ -293,9 +314,12 @@ class LinearModel(CoreModel):
 
         return model_results
 
-    def _get_coefficient_results(self, pretty_format: object = True, table_decimals: object = None, *args: object) -> dict:
+    def _get_coefficient_results(self, na_rep='', pretty_format=True, table_decimals=None,
+                                    coef_transform=None) -> dict:
 
-        return super()._get_coefficient_results(pretty_format=pretty_format, table_decimals=table_decimals, *args)
+        return super()._get_coefficient_results(pretty_format=pretty_format,
+                                                table_decimals=table_decimals,
+                                                coef_transform=coef_transform)
 
 
     #-----------------------------------------------------------------------------------------------------------------#
@@ -327,9 +351,7 @@ class LinearModel(CoreModel):
                                                table_decimals=self._table_decimals,
                                                *args)
 
-        coefficients = self._get_coefficient_results(pretty_format=pretty_format,
-                                                     table_decimals=self._table_decimals,
-                                                     *args)
+        coefficients = self._get_coefficient_results(pretty_format=pretty_format, table_decimals=self._table_decimals)
 
 
         self.ModelResults = ModelResults(
