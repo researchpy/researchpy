@@ -11,7 +11,7 @@ Usage:
 
 """
 
-from researchpy.core.containerclasses import ModelFit, ModelEffects, CoefResults, FactorEffects, FitStatistics, ModelResults, TestResults, Term, ModelTerms
+from researchpy.core.containerclasses import ModelFit, ModelEffects, CoefResults, FactorEffects, FitStatistics, ModelResults, TestResults, Term, ModelTerms, SolverOptions
 
 # Define what gets exported with "from researchpy.core import *"
 __all__ = [
@@ -25,5 +25,6 @@ __all__ = [
     'ModelResults',
     'TestResults',
     'Term',
-    'ModelTerms'
+    'ModelTerms',
+    'SolverOptions'
 ]

@@ -2,7 +2,7 @@ from scipy.stats import norm
 from scipy.special import expit
 
 from researchpy.models.general_model import GeneralModel
-from researchpy.core.containerclasses import ModelResults
+from researchpy.core.containerclasses import ModelResults, SolverOptions
 from researchpy.utility import *
 from researchpy.predict import predict
 
@@ -26,7 +26,7 @@ class LogisticRegression(GeneralModel):
         Data containing the variables referenced in the formula.
     solver_method : str, optional
         Method for fitting the model. Default is "mle".
-    solver_options : dict, optional
+    solver_options : dict or SolverOptions, optional
         Options for the solver including:
         - algorithm: "BFGS" (default) or "newton-raphson"
         - tol: Convergence tolerance (default 1e-7)
@@ -51,29 +51,37 @@ class LogisticRegression(GeneralModel):
     """
 
     def __init__(self, formula_like, data=None, display_summary=True,
-                 solver_method="mle", solver_options=None,
+                 solver_options=None,
                  initial_betas=None, initial_betas_method="ols"):
 
         if data is None:
             data = {}
 
-        if solver_options is None:
-            solver_options = {}
+        # Build SolverOptions: start with LogisticRegression-specific defaults, then overlay user input.
+        base_defaults = SolverOptions(
+            method="mle",
+            algorithm="BFGS",
+            obj_function="log-likelihood",
+            tol=1e-7,
+            max_iter=1000,
+            display=True,
+            regularization=None,
+            alpha=0.0
+        )
 
-        base_solver_options = {"algorithm": "BFGS", # 'BFGS' (Broyden-Fletcher-Goldfarb-Shanno algorithm, 'nr' (Newton-Raphson)
-                               "tol": 1e-7,
-                               "max_iter": 1000,
-                               "display": True,
-                               "regularization": None,  # None, 'l1', or 'l2'
-                               "alpha": 0.0  # Regularization strength
-                               }
-        solver_options = base_solver_options | solver_options
+        if solver_options is None:
+            resolved_solver_options = base_defaults
+        elif isinstance(solver_options, SolverOptions):
+            resolved_solver_options = solver_options
+        else:
+            # User passed a dict — override base defaults with user values
+            resolved_solver_options = base_defaults.with_overrides(solver_options)
 
         self._test_stat_name = "z"
 
         super().__init__(formula_like, data, matrix_type=1,
-                         solver_method=solver_method, solver_options=solver_options,
-                         family="binomial", link="logit", obj_function="log-likelihood")
+                         solver_options=resolved_solver_options,
+                         family="binomial", link="logit")
 
         self.__name__ = "Researchpy.LogisticRegression"
 

@@ -4,7 +4,7 @@ import patsy
 
 from researchpy.utility import *
 from researchpy.predict import predict
-from researchpy.core.containerclasses import ModelFit, FitStatistics, ModelEffects, CoefResults, ModelTerms
+from researchpy.core.containerclasses import ModelFit, FitStatistics, ModelEffects, CoefResults, ModelTerms, SolverOptions
 
 from researchpy.optimize.trackers import OptimizationTracker
 
@@ -66,10 +66,18 @@ class CoreModel():
         if matrix_type == 0:
             self.DV, self.IV = patsy.dmatrices(formula_like + "- 1", data, 1)
 
-        base_solver_options = {"tol": 1e-7, "max_iter": 300, "display": True}
-        self.solver_options = base_solver_options | solver_options
+        # Build a SolverOptions dataclass instance.
+        # If solver_options is already a SolverOptions instance (passed from a subclass), use it directly.
+        # Otherwise, construct one from the dict + the top-level method/obj_function params.
+        if isinstance(solver_options, SolverOptions):
+            self.solver_options = solver_options
+        else:
+            # Merge top-level params into the dict so subclasses can pass them either way
+            merged = {"method": solver_method, "obj_function": obj_function}
+            merged.update(solver_options)
+            self.solver_options = SolverOptions.from_dict(merged)
 
-        self.obj_function = obj_function
+        self.obj_function = self.solver_options.obj_function
 
         self.CI_LEVEL = conf_level
         self.conf_level = conf_level
@@ -85,12 +93,6 @@ class CoreModel():
         self._family = family
         self._link = link
         self._CI_LEVEL = conf_level
-        self._solver = {"method": solver_method,
-                        "obj_function": obj_function,
-                        "algorithm": solver_options.get("algorithm", None),
-                        "tol": solver_options.get("tol", None),
-                        "max_iter": solver_options.get("max_iter", None),
-                        "display": solver_options.get("display", True)}
 
         # Initialize an optimization tracker instance for this model. This tracker can be used by optimization
         # algorithms to store and monitor the optimization process.
@@ -114,7 +116,7 @@ class CoreModel():
             formula = formula_like,
             family = family,
             link = link,
-            solver_method = solver_method,
+            solver_method = self.solver_options.method,
             ci_level = conf_level,
             dv_term_names = self.DV.design_info.term_names,
             iv_term_names = list(self._model_terms.column_map.keys())

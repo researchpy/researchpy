@@ -8,8 +8,30 @@ def log_likelihood(y_e):
 
 
 def neg_log_likelihood(params, IV, DV, solver_options, distribution_family="binomial", link_function="logit", tracker=None):
-    """Negative log-likelihood function for scipy.optimize."""
-    #params = params.reshape(-1, 1)  # Ensure params is a column vector
+    """Negative log-likelihood function for scipy.optimize.
+
+    Parameters
+    ----------
+    params : array-like
+        Current parameter estimates.
+    IV : array-like
+        Independent variable (design) matrix.
+    DV : array-like
+        Dependent variable vector.
+    solver_options : SolverOptions
+        A SolverOptions dataclass instance containing regularization and display settings.
+    distribution_family : str
+        Distribution family (e.g., "binomial").
+    link_function : str
+        Link function (e.g., "logit").
+    tracker : OptimizationTracker or None
+        Optional tracker for monitoring optimization progress.
+
+    Returns
+    -------
+    float
+        The negative log-likelihood value.
+    """
     params = np.atleast_2d(params).T  # Ensure params is a column vector
     linear_pred = IV @ params
 
@@ -30,22 +52,19 @@ def neg_log_likelihood(params, IV, DV, solver_options, distribution_family="bino
         raise NotImplementedError(f"Distribution family '{distribution_family}' is not implemented.")
 
     # Add regularization if specified
-    if solver_options.get("regularization") == "l2":
-        alpha = solver_options.get("alpha", 0.0)
+    if solver_options.regularization == "l2":
         # Don't regularize intercept (first coefficient)
-        ll += alpha * np.sum(params[1:] ** 2)
+        ll += solver_options.alpha * np.sum(params[1:] ** 2)
 
-    elif solver_options.get("regularization") == "l1":
-        alpha = solver_options.get("alpha", 0.0)
-        ll += alpha * np.sum(np.abs(params[1:]))
+    elif solver_options.regularization == "l1":
+        ll += solver_options.alpha * np.sum(np.abs(params[1:]))
 
     # Store the log-likelihood value in the tracker if provided
     if tracker is not None:
         tracker.current_cost = ll
         tracker.current_cost_index += 1
 
-        if solver_options["display"]:
-            #print(f"{tracker.current_cost_index} Bernoulli Log-likelihood = {-ll:.4f}")
+        if solver_options.display:
             print(f"Log-likelihood = {-ll:.5f}")
 
     return ll
@@ -53,7 +72,28 @@ def neg_log_likelihood(params, IV, DV, solver_options, distribution_family="bino
 
 
 def gradient_neg_log_likelihood(params, IV, DV, solver_options, distribution_family="binomial", link_function="logit"):
-    """Gradient of negative log-likelihood."""
+    """Gradient of negative log-likelihood.
+
+    Parameters
+    ----------
+    params : array-like
+        Current parameter estimates.
+    IV : array-like
+        Independent variable (design) matrix.
+    DV : array-like
+        Dependent variable vector.
+    solver_options : SolverOptions
+        A SolverOptions dataclass instance containing regularization settings.
+    distribution_family : str
+        Distribution family (e.g., "binomial").
+    link_function : str
+        Link function (e.g., "logit").
+
+    Returns
+    -------
+    ndarray
+        Flattened gradient vector.
+    """
     params = params.reshape(-1, 1)  # Ensure params is a column vector
     linear_pred = IV @ params
 
@@ -70,16 +110,14 @@ def gradient_neg_log_likelihood(params, IV, DV, solver_options, distribution_fam
         raise NotImplementedError(f"Distribution family '{distribution_family}' is not implemented.")
 
     # Add regularization gradient if specified
-    if solver_options.get("regularization") == "l2":
-        alpha = solver_options.get("alpha", 0.0)
+    if solver_options.regularization == "l2":
         reg_grad = np.zeros_like(params)
-        reg_grad[1:] = 2 * alpha * params[1:]  # Don't regularize intercept
+        reg_grad[1:] = 2 * solver_options.alpha * params[1:]  # Don't regularize intercept
         grad += reg_grad
 
-    elif solver_options.get("regularization") == "l1":
-        alpha = solver_options.get("alpha", 0.0)
+    elif solver_options.regularization == "l1":
         reg_grad = np.zeros_like(params)
-        reg_grad[1:] = alpha * np.sign(params[1:])
+        reg_grad[1:] = solver_options.alpha * np.sign(params[1:])
         grad += reg_grad
 
     return grad.flatten()  # Return flattened gradient for scipy.optimize

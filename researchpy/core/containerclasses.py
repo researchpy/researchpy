@@ -169,6 +169,121 @@ class ModelFit(CoreDataclass):
 
 
 
+@dataclass
+class SolverOptions(CoreDataclass):
+    """
+    Standardized container for optimization/solver parameters.
+
+    Used by ``GeneralModel`` and its subclasses (``LogisticRegression``,
+    ``PoissonRegression``, etc.) to configure the iterative solver.
+
+    Parameters
+    ----------
+    method : str
+        High-level estimation method. One of ``"ols"``, ``"mle"``, ``"irls"``.
+        Default is ``"ols"``.
+    algorithm : str or None
+        Specific optimization algorithm to use (e.g., ``"BFGS"``,
+        ``"newton-raphson"``, ``"L-BFGS-B"``). Default is ``None``, meaning
+        the model class will choose a sensible default.
+    obj_function : str
+        Objective function type. One of ``"numeric"``, ``"log-likelihood"``.
+        Default is ``"numeric"``.
+    tol : float
+        Convergence tolerance for the optimizer. Default is ``1e-7``.
+    max_iter : int
+        Maximum number of iterations allowed. Default is ``300``.
+    display : bool
+        Whether to print iteration/convergence information during fitting.
+        Default is ``True``.
+    regularization : str or None
+        Type of regularization to apply. One of ``None``, ``"l1"``, ``"l2"``.
+        Default is ``None`` (no regularization).
+    alpha : float
+        Regularization strength (penalty weight). Only used when
+        ``regularization`` is not ``None``. Default is ``0.0``.
+
+    Examples
+    --------
+    >>> from researchpy.core.containerclasses import SolverOptions
+    >>> opts = SolverOptions(method="mle", algorithm="BFGS", max_iter=1000)
+    >>> opts.algorithm
+    'BFGS'
+
+    Users may also pass a plain dictionary to model constructors; the
+    constructor will unpack it into a ``SolverOptions`` instance:
+
+    >>> model = LogisticRegression("y ~ x", data=df,
+    ...                            solver_options={"algorithm": "BFGS", "max_iter": 500})
+    """
+
+    method: str = "ols"
+    algorithm: Optional[str] = None
+    obj_function: str = "numeric"
+    tol: float = 1e-7
+    max_iter: int = 300
+    display: bool = True
+    regularization: Optional[str] = None
+    alpha: float = 0.0
+
+    def __post_init__(self):
+        self.__name__ = "Researchpy.SolverOptions"
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "SolverOptions":
+        """Create a SolverOptions instance from a dictionary, ignoring unknown keys.
+
+        Parameters
+        ----------
+        d : dict
+            Dictionary of solver option key-value pairs. Keys that do not
+            correspond to a ``SolverOptions`` field are silently ignored.
+
+        Returns
+        -------
+        SolverOptions
+            A new instance with values from *d* merged over the defaults.
+        """
+        valid_keys = {f.name for f in fields(cls)}
+        filtered = {k: v for k, v in d.items() if k in valid_keys}
+        return cls(**filtered)
+
+    def with_overrides(self, overrides: dict) -> "SolverOptions":
+        """Return a new SolverOptions with selected fields replaced.
+
+        Creates a copy of this instance with any valid keys in *overrides*
+        applied on top. Unknown keys are silently ignored.
+
+        Parameters
+        ----------
+        overrides : dict
+            Dictionary of field names to new values.
+
+        Returns
+        -------
+        SolverOptions
+            A new instance with the overrides applied.
+        """
+        from dataclasses import replace as _replace
+        valid_keys = {f.name for f in fields(self)}
+        filtered = {k: v for k, v in overrides.items() if k in valid_keys}
+        return _replace(self, **filtered)
+
+    def to_scipy_options(self) -> dict:
+        """Return a dict suitable for ``scipy.optimize.minimize(options=...)``.
+
+        Maps ``max_iter`` → ``maxiter`` and ``tol`` → ``gtol`` as expected by
+        scipy's gradient-based optimizers.
+
+        Returns
+        -------
+        dict
+            Options dictionary for scipy.optimize.minimize.
+        """
+        return {
+            "maxiter": self.max_iter,
+            "gtol": self.tol,
+        }
 
 
 @dataclass
